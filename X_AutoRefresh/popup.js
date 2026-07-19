@@ -1,28 +1,287 @@
+// =========================
+// DOM取得
+// =========================
 const enabledElement = document.getElementById("enabled");
 const intervalElement = document.getElementById("interval");
+const scheduleEnabledElement = document.getElementById("scheduleEnabled");
+const scheduleSettingsElement = document.getElementById("scheduleSettings");
+const scheduleStartElement = document.getElementById("scheduleStart");
+const scheduleEndElement = document.getElementById("scheduleEnd");
+const scheduleDayElements = document.querySelectorAll('input[name="scheduleDay"]');
 
-// 保存済み設定を読み込む
-chrome.storage.local.get(
-  {
-    enabled: true,
-    intervalSeconds: 30
-  },
-  (settings) => {
-    enabledElement.checked = settings.enabled;
-    intervalElement.value = String(settings.intervalSeconds);
+const keywordInput = document.getElementById("keywordInput");
+const addKeywordButton = document.getElementById("addKeyword");
+const keywordList = document.getElementById("keywordList");
+
+const userInput = document.getElementById("userInput");
+const addUserButton = document.getElementById("addUser");
+const userList = document.getElementById("userList");
+
+// =========================
+// 拡張機能情報・アイコン設定
+// =========================
+const manifest = chrome.runtime.getManifest();
+const extensionNameElement = document.getElementById("extensionName");
+const extensionVersionElement = document.getElementById("extensionVersion");
+const extensionIconElement = document.getElementById("extensionIcon");
+
+if (extensionNameElement) extensionNameElement.textContent = manifest.name;
+if (extensionVersionElement) extensionVersionElement.textContent = "v" + manifest.version;
+
+if (manifest.icons && manifest.icons["48"] && extensionIconElement) {
+  extensionIconElement.src = chrome.runtime.getURL(manifest.icons["48"]);
+}
+
+// =========================
+// 初期設定読み込み
+// =========================
+const defaultSettings = {
+  enabled: true,
+  intervalSeconds: 30,
+  highlightKeywords: [],
+  highlightUsers: [],
+  scheduleEnabled: false,
+  scheduleDays: [],
+  scheduleStartTime: "00:00",
+  scheduleEndTime: "23:59"
+};
+
+chrome.storage.local.get(defaultSettings, (settings) => {
+  enabledElement.checked = settings.enabled;
+  intervalElement.value = String(settings.intervalSeconds);
+  scheduleEnabledElement.checked = settings.scheduleEnabled;
+  scheduleStartElement.value = settings.scheduleStartTime;
+  scheduleEndElement.value = settings.scheduleEndTime;
+
+  for (const dayElement of scheduleDayElements) {
+    const day = Number(dayElement.value);
+    dayElement.checked = settings.scheduleDays.includes(day);
   }
-);
 
-// ON/OFF変更時に保存
+  renderKeywords(settings.highlightKeywords);
+  renderUsers(settings.highlightUsers);
+  updateScheduleDisabledState();
+});
+
+// =========================
+// ストレージ変更の監視 (描画の自動更新)
+// =========================
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "local") return;
+  
+  if (changes.highlightKeywords) {
+    renderKeywords(changes.highlightKeywords.newValue || []);
+  }
+  if (changes.highlightUsers) {
+    renderUsers(changes.highlightUsers.newValue || []);
+  }
+});
+
+// =========================
+// イベントリスナー設定
+// =========================
 enabledElement.addEventListener("change", () => {
-  chrome.storage.local.set({
-    enabled: enabledElement.checked
+  chrome.storage.local.set({ enabled: enabledElement.checked });
+});
+
+intervalElement.addEventListener("change", () => {
+  chrome.storage.local.set({ intervalSeconds: Number(intervalElement.value) });
+});
+
+scheduleEnabledElement.addEventListener("change", () => {
+  chrome.storage.local.set({ scheduleEnabled: scheduleEnabledElement.checked });
+  updateScheduleDisabledState();
+});
+
+for (const dayElement of scheduleDayElements) {
+  dayElement.addEventListener("change", saveSchedule);
+}
+
+// スケジュール時刻入力の制御
+[scheduleStartElement, scheduleEndElement].forEach(element => {
+  element.addEventListener("input", () => {
+    element.value = sanitizeTimeInput(element.value);
+  });
+  
+  element.addEventListener("change", () => {
+    const normalized = normalizeTime(element.value);
+    if (normalized) {
+      element.value = normalized;
+      saveSchedule();
+    }
   });
 });
 
-// 更新間隔変更時に保存
-intervalElement.addEventListener("change", () => {
+// キーワード・ユーザー追加イベント
+addKeywordButton.addEventListener("click", addKeyword);
+keywordInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addKeyword(); });
+
+addUserButton.addEventListener("click", addUser);
+userInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addUser(); });
+
+// =========================
+// 各種機能関数
+// =========================
+
+function updateScheduleDisabledState() {
+  const disabled = !scheduleEnabledElement.checked;
+  scheduleSettingsElement.classList.toggle("disabled", disabled);
+  
+  for (const dayElement of scheduleDayElements) {
+    dayElement.disabled = disabled;
+  }
+  scheduleStartElement.disabled = disabled;
+  scheduleEndElement.disabled = disabled;
+}
+
+function saveSchedule() {
+  const days = Array.from(scheduleDayElements)
+    .filter(el => el.checked)
+    .map(el => Number(el.value));
+
   chrome.storage.local.set({
-    intervalSeconds: Number(intervalElement.value)
+    scheduleDays: days,
+    scheduleStartTime: scheduleStartElement.value,
+    scheduleEndTime: scheduleEndElement.value
   });
-});
+}
+
+function sanitizeTimeInput(value) {
+  let digits = value.replace(/[^0-9]/g, "");
+  digits = digits.slice(0, 4);
+  if (digits.length > 2) {
+    return digits.slice(0, 2) + ":" + digits.slice(2);
+  }
+  return digits;
+}
+
+function normalizeTime(value) {
+  const time = value.trim();
+  if (!time) return null;
+
+  const sanitized = sanitizeTimeInput(time);
+  const match = sanitized.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  return String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
+}
+
+// 登録・削除ロジック
+function addKeyword() {
+  const keyword = keywordInput.value.trim();
+  if (!keyword) return;
+
+  chrome.storage.local.get({ highlightKeywords: [] }, (settings) => {
+    const keywords = settings.highlightKeywords;
+    if (!keywords.includes(keyword)) {
+      keywords.push(keyword);
+      chrome.storage.local.set({ highlightKeywords: keywords }, () => {
+        keywordInput.value = "";
+      });
+    } else {
+      keywordInput.value = "";
+    }
+  });
+}
+
+function removeKeyword(keyword) {
+  chrome.storage.local.get({ highlightKeywords: [] }, (settings) => {
+    const keywords = settings.highlightKeywords.filter(item => item !== keyword);
+    chrome.storage.local.set({ highlightKeywords: keywords });
+  });
+}
+
+function addUser() {
+  let username = userInput.value.trim().replace(/^@/, "");
+  if (!username) return;
+
+  chrome.storage.local.get({ highlightUsers: [] }, (settings) => {
+    const users = settings.highlightUsers;
+    if (!users.includes(username)) {
+      users.push(username);
+      chrome.storage.local.set({ highlightUsers: users }, () => {
+        userInput.value = "";
+      });
+    } else {
+      userInput.value = "";
+    }
+  });
+}
+
+function removeUser(username) {
+  chrome.storage.local.get({ highlightUsers: [] }, (settings) => {
+    const users = settings.highlightUsers.filter(item => item !== username);
+    chrome.storage.local.set({ highlightUsers: users });
+  });
+}
+
+// =========================
+// UIレンダリング関数
+// =========================
+
+function renderKeywords(keywords) {
+  keywordList.innerHTML = "";
+
+  if (keywords.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "登録されたキーワードはありません。";
+    keywordList.appendChild(empty);
+    return;
+  }
+
+  for (const keyword of keywords) {
+    const item = document.createElement("div");
+    item.className = "item";
+
+    const text = document.createElement("span");
+    text.textContent = keyword;
+
+    const removeButton = createRemoveButton(() => { removeKeyword(keyword); });
+
+    item.appendChild(text);
+    item.appendChild(removeButton);
+    keywordList.appendChild(item);
+  }
+}
+
+function renderUsers(users) {
+  userList.innerHTML = "";
+
+  if (users.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "登録されたユーザーはいません。";
+    userList.appendChild(empty);
+    return;
+  }
+
+  for (const username of users) {
+    const item = document.createElement("div");
+    item.className = "item";
+
+    const text = document.createElement("span");
+    text.textContent = "@" + username;
+
+    const removeButton = createRemoveButton(() => { removeUser(username); });
+
+    item.appendChild(text);
+    item.appendChild(removeButton);
+    userList.appendChild(item);
+  }
+}
+
+// 共通ボタン生成関数（関数名を統一）
+function createRemoveButton(callback) {
+  const button = document.createElement("button");
+  button.className = "remove-button";
+  button.textContent = "×";
+  button.title = "削除";
+  button.addEventListener("click", callback);
+  return button;
+}

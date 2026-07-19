@@ -1,8 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "X(Twitter) TL Auto Refresh",
-  "version": "0.0.1",
+  "name": "X Auto Refresh",
+  "short_name": "XAR",
   "description": "X(Twitter)のタイムラインを自動更新します。",
+  "version": "0.1.0",
+  "author": "chamroot",
+  "homepage_url": "https://github.com/chamroot/AI__chrome_extensions/tree/main/X_AutoRefresh",
   "permissions": [
     "storage"
   ],
