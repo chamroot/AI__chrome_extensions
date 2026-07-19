@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>X TL Auto Refresh</title>
+
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1c2732;
+      --border: #38444d;
+      --text: #e7e9ea;
+      --subtext: #8b98a5;
+      --accent: #7856FF;
+      --accent-hover: #7f66e5;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 280px;
+      margin: 0;
+      padding: 20px;
+      background: var(--bg);
+      color: var(--text);
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Arial,
+        sans-serif;
+    }
+
+    /* ヘッダー */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 21px;
+      font-weight: bold;
+      color: white;
+    }
+
+    .title {
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .subtitle {
+      margin-top: 3px;
+      font-size: 11px;
+      color: var(--subtext);
+    }
+
+    /* 設定カード */
+    .card {
+      padding: 14px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+
+    /* 自動更新設定 */
+    .setting {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .setting-label {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .setting-description {
+      margin-top: 3px;
+      font-size: 11px;
+      color: var(--subtext);
+    }
+
+    /* トグルスイッチ */
+    .switch {
+      position: relative;
+      width: 42px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      cursor: pointer;
+      background: #536471;
+      border-radius: 24px;
+      transition: 0.2s;
+    }
+
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+
+    input:checked + .slider {
+      background: var(--accent);
+    }
+
+    input:checked + .slider::before {
+      transform: translateX(18px);
+    }
+
+    /* 更新間隔 */
+    .interval-section {
+      margin-top: 16px;
+    }
+
+    .interval-title {
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    select {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    select:focus {
+      border-color: var(--accent);
+    }
+
+    /* 説明 */
+    .status {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--subtext);
+    }
+
+    .status::before {
+      content: "●";
+      margin-right: 6px;
+      color: var(--accent);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="header">
+    <div class="logo">X</div>
+
+    <div>
+      <div class="title">X Auto Refresh</div>
+      <div class="subtitle">TL絶対に自動更新する君.exe</div>
+    </div>
+  </div>
+
+  <div class="card">
+
+    <div class="setting">
+      <div>
+        <div class="setting-label">自動更新</div>
+        <div class="setting-description">
+          タイムライン自動更新を有効化
+        </div>
+      </div>
+
+      <label class="switch">
+        <input type="checkbox" id="enabled">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="interval-section">
+      <div class="interval-title">更新間隔</div>
+
+      <select id="interval">
+        <option value="10">10秒</option>
+        <option value="15">15秒</option>
+        <option value="30">30秒</option>
+        <option value="60">1分</option>
+        <option value="120">2分</option>
+        <option value="300">5分</option>
+      </select>
+    </div>
+
+    <div class="status">
+      XのTLを自動更新後、元のスクロール位置に遷移します。
+    </div>
+
+  </div>
+
+  <script src="popup.js"></script>
+
+</body>
+</html>
