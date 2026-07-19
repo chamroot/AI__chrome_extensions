@@ -463,7 +463,7 @@
     isUpdating = true;
 
     log(
-      "ページをリロードせずTLを更新します"
+      "TLを更新します"
     );
 
     const currentScrollY =
