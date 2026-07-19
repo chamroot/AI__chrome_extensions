@@ -449,12 +449,12 @@
       return;
     }
 
-    const newTweetsButton =
-      findNewTweetsButton();
+    const homeButton =
+      findHomeButton();
 
-    if (!newTweetsButton) {
+    if (!homeButton) {
       log(
-        "新着ポストボタンが見つかりません"
+        "ホームボタンが見つかりません"
       );
 
       return;
@@ -463,7 +463,7 @@
     isUpdating = true;
 
     log(
-      "新着ポストを取得します"
+      "ページをリロードせずTLを更新します"
     );
 
     const currentScrollY =
@@ -472,7 +472,7 @@
     const activeElement =
       document.activeElement;
 
-    newTweetsButton.click();
+    homeButton.click();
 
     setTimeout(
       () => {
@@ -1441,20 +1441,22 @@
   }
 
   // =========================
-  // 新着ポストボタン検索
+  // ホームボタン検索
   // =========================
-  function findNewTweetsButton() {
+  function findHomeButton() {
     const elements =
       document.querySelectorAll(
-        "button, [role=\"button\"]"
+        'a, button, [role="button"]'
       );
-
-    let countButton = null;
-    let normalButton = null;
 
     for (
       const element of elements
     ) {
+      const href =
+        element.getAttribute(
+          "href"
+        ) || "";
+
       const ariaLabel =
         element.getAttribute(
           "aria-label"
@@ -1465,55 +1467,31 @@
           element.innerText ||
           element.textContent ||
           ""
-        )
-          .trim()
-          .replace(
-            /\s+/g,
-            " "
-          );
+        ).trim();
+
+      if (
+        href === "/home" ||
+        href === "/"
+      ) {
+        return element;
+      }
 
       const combined =
         (
           ariaLabel +
           " " +
           text
-        )
-          .toLowerCase();
+        ).toLowerCase();
 
-      // -------------------------
-      // 「N 件のポストを表示」
-      // -------------------------
       if (
-        /^\d+\s*件のポストを表示$/
-          .test(text)
+        combined === "ホーム" ||
+        combined === "home"
       ) {
-        countButton = element;
-        continue;
-      }
-
-      // -------------------------
-      // 「新しいポストを表示」
-      // 「新しいポストがあります」
-      // -------------------------
-      if (
-        combined.includes(
-          "新しいポストを表示"
-        ) ||
-        combined.includes(
-          "新しいポストがあります"
-        ) ||
-        combined.includes(
-          "show new posts"
-        ) ||
-        combined.includes(
-          "see new posts"
-        )
-      ) {
-        normalButton = element;
+        return element;
       }
     }
 
-    // 件数表示を優先
-    return countButton || normalButton || null;
+    return null;
   }
+
 })();
