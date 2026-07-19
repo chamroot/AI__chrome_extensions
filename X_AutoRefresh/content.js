@@ -4,56 +4,60 @@
   // =========================
   // 基本設定
   // =========================
-
   let enabled = true;
   let intervalSeconds = 30;
+  let consoleLogEnabled = true;
   let timer = null;
   let isUpdating = false;
 
   // =========================
   // スクロール状態
   // =========================
-
   let isUserScrolling = false;
   let scrollStopTimer = null;
-
   const SCROLL_STOP_DELAY = 1000;
 
   // =========================
   // 未読管理
   // =========================
-
   const unreadTweets = new Map();
-
   const MAX_UNREAD = 100;
   const UNREAD_EXPIRE_TIME = 60 * 60 * 1000;
-
   let isInitialized = false;
 
   // =========================
   // ハイライト設定
   // =========================
-
   let highlightKeywords = [];
   let highlightUsers = [];
 
   // =========================
   // スケジュール設定
   // =========================
-
   let scheduleEnabled = false;
   let scheduleDays = [];
   let scheduleStartTime = "00:00";
   let scheduleEndTime = "23:59";
 
   // =========================
+  // ログ
+  // =========================
+  function log(...args) {
+    if (!consoleLogEnabled) {
+      return;
+    }
+
+    console.log("[XAR]", ...args);
+  }
+
+  // =========================
   // 初期設定読み込み
   // =========================
-
   chrome.storage.local.get(
     {
       enabled: true,
       intervalSeconds: 30,
+      consoleLogEnabled: true,
       highlightKeywords: [],
       highlightUsers: [],
       scheduleEnabled: false,
@@ -65,6 +69,7 @@
     (settings) => {
       enabled = settings.enabled;
       intervalSeconds = settings.intervalSeconds;
+      consoleLogEnabled = settings.consoleLogEnabled;
 
       highlightKeywords =
         settings.highlightKeywords || [];
@@ -88,20 +93,18 @@
         settings.unreadTweets
       );
 
-      console.log(
-        "[X Auto Refresh] 起動",
-        {
-          enabled,
-          intervalSeconds,
-          highlightKeywords,
-          highlightUsers,
-          scheduleEnabled,
-          scheduleDays,
-          scheduleStartTime,
-          scheduleEndTime,
-          unreadTweets: unreadTweets.size
-        }
-      );
+      log("起動", {
+        enabled,
+        intervalSeconds,
+        consoleLogEnabled,
+        highlightKeywords,
+        highlightUsers,
+        scheduleEnabled,
+        scheduleDays,
+        scheduleStartTime,
+        scheduleEndTime,
+        unreadTweets: unreadTweets.size
+      });
 
       initializeExistingTweets();
 
@@ -120,77 +123,176 @@
   // =========================
   // 設定変更監視
   // =========================
-
   chrome.storage.onChanged.addListener(
     (changes) => {
+      const changedSettings = [];
+
+      let shouldRestartTimer = false;
+
+      // -------------------------
+      // 有効 / 無効
+      // -------------------------
       if (changes.enabled) {
-        enabled =
-          changes.enabled.newValue;
+        const oldValue = enabled;
+        enabled = changes.enabled.newValue;
+
+        changedSettings.push(
+          `enabled: ${oldValue} → ${enabled}`
+        );
+
+        shouldRestartTimer = true;
       }
 
+      // -------------------------
+      // 更新間隔
+      // -------------------------
       if (changes.intervalSeconds) {
+        const oldValue = intervalSeconds;
         intervalSeconds =
           changes.intervalSeconds.newValue;
+
+        changedSettings.push(
+          `intervalSeconds: ${oldValue} → ${intervalSeconds}`
+        );
+
+        shouldRestartTimer = true;
       }
 
+      // -------------------------
+      // ログ出力
+      // -------------------------
+      if (changes.consoleLogEnabled) {
+        const oldValue = consoleLogEnabled;
+        consoleLogEnabled =
+          changes.consoleLogEnabled.newValue;
+
+        if (consoleLogEnabled) {
+          log(
+            `consoleLogEnabled: ${oldValue} → ${consoleLogEnabled}`
+          );
+        }
+      }
+
+      // -------------------------
+      // キーワード
+      // -------------------------
       if (changes.highlightKeywords) {
+        const oldValue = highlightKeywords;
+
         highlightKeywords =
           changes.highlightKeywords.newValue || [];
 
         clearKeywordHighlights();
         applyKeywordHighlights();
+
+        changedSettings.push({
+          highlightKeywords: {
+            old: oldValue,
+            new: highlightKeywords
+          }
+        });
       }
 
+      // -------------------------
+      // ユーザー
+      // -------------------------
       if (changes.highlightUsers) {
+        const oldValue = highlightUsers;
+
         highlightUsers =
           changes.highlightUsers.newValue || [];
 
         clearUserHighlights();
         applyUserHighlights();
+
+        changedSettings.push({
+          highlightUsers: {
+            old: oldValue,
+            new: highlightUsers
+          }
+        });
       }
 
+      // -------------------------
+      // スケジュール有効 / 無効
+      // -------------------------
       if (changes.scheduleEnabled) {
+        const oldValue = scheduleEnabled;
+
         scheduleEnabled =
           changes.scheduleEnabled.newValue;
+
+        changedSettings.push(
+          `scheduleEnabled: ${oldValue} → ${scheduleEnabled}`
+        );
       }
 
+      // -------------------------
+      // スケジュール曜日
+      // -------------------------
       if (changes.scheduleDays) {
+        const oldValue = scheduleDays;
+
         scheduleDays =
           changes.scheduleDays.newValue || [];
+
+        changedSettings.push({
+          scheduleDays: {
+            old: oldValue,
+            new: scheduleDays
+          }
+        });
       }
 
+      // -------------------------
+      // 開始時刻
+      // -------------------------
       if (changes.scheduleStartTime) {
+        const oldValue = scheduleStartTime;
+
         scheduleStartTime =
-          changes.scheduleStartTime.newValue || "00:00";
+          changes.scheduleStartTime.newValue ||
+          "00:00";
+
+        changedSettings.push(
+          `scheduleStartTime: ${oldValue} → ${scheduleStartTime}`
+        );
       }
 
+      // -------------------------
+      // 終了時刻
+      // -------------------------
       if (changes.scheduleEndTime) {
+        const oldValue = scheduleEndTime;
+
         scheduleEndTime =
-          changes.scheduleEndTime.newValue || "23:59";
+          changes.scheduleEndTime.newValue ||
+          "23:59";
+
+        changedSettings.push(
+          `scheduleEndTime: ${oldValue} → ${scheduleEndTime}`
+        );
       }
 
-      startTimer();
+      // -------------------------
+      // 変更ログ
+      // -------------------------
+      if (changedSettings.length > 0) {
+        log("設定変更", changedSettings);
+      }
 
-      console.log(
-        "[X Auto Refresh] 設定変更",
-        {
-          enabled,
-          intervalSeconds,
-          highlightKeywords,
-          highlightUsers,
-          scheduleEnabled,
-          scheduleDays,
-          scheduleStartTime,
-          scheduleEndTime
-        }
-      );
+      // -------------------------
+      // 必要な場合のみタイマー再設定
+      // -------------------------
+      if (shouldRestartTimer) {
+        startTimer();
+      }
     }
   );
 
   // =========================
   // 未読情報復元
   // =========================
-
   function restoreUnreadTweets(
     savedTweets
   ) {
@@ -239,7 +341,6 @@
   // =========================
   // 未読情報保存
   // =========================
-
   function saveUnreadTweets() {
     const data = [];
 
@@ -269,19 +370,13 @@
   // =========================
   // タイマー
   // =========================
-
   function startTimer() {
     if (timer !== null) {
       clearInterval(timer);
-
       timer = null;
     }
 
     if (!enabled) {
-      console.log(
-        "[X Auto Refresh] OFF"
-      );
-
       return;
     }
 
@@ -289,16 +384,11 @@
       refreshTimeline,
       intervalSeconds * 1000
     );
-
-    console.log(
-      `[X Auto Refresh] ${intervalSeconds}秒ごとにTLを更新`
-    );
   }
 
   // =========================
   // スクロール監視
   // =========================
-
   function observeScroll() {
     window.addEventListener(
       "scroll",
@@ -325,15 +415,12 @@
       }
     );
 
-    console.log(
-      "[X Auto Refresh] スクロール監視を開始"
-    );
+    log("スクロール監視を開始");
   }
 
   // =========================
   // TL更新
   // =========================
-
   function refreshTimeline() {
     if (
       !enabled ||
@@ -343,8 +430,8 @@
     }
 
     if (isUserScrolling) {
-      console.log(
-        "[X Auto Refresh] スクロール中のため更新をスキップ"
+      log(
+        "スクロール中のため更新をスキップ"
       );
 
       return;
@@ -355,8 +442,8 @@
     }
 
     if (!isWithinSchedule()) {
-      console.log(
-        "[X Auto Refresh] スケジュール外のため更新をスキップ"
+      log(
+        "スケジュール外のため更新をスキップ"
       );
 
       return;
@@ -366,8 +453,8 @@
       findNewTweetsButton();
 
     if (!newTweetsButton) {
-      console.log(
-        "[X Auto Refresh] 新着ツイートボタンが見つかりません"
+      log(
+        "新着ポストボタンが見つかりません"
       );
 
       return;
@@ -375,8 +462,8 @@
 
     isUpdating = true;
 
-    console.log(
-      "[X Auto Refresh] 新着ツイートを取得します"
+    log(
+      "新着ポストを取得します"
     );
 
     const currentScrollY =
@@ -425,7 +512,6 @@
   // =========================
   // スケジュール判定
   // =========================
-
   function isWithinSchedule() {
     if (!scheduleEnabled) {
       return true;
@@ -487,7 +573,6 @@
   // =========================
   // 時刻を分に変換
   // =========================
-
   function parseTimeToMinutes(
     time
   ) {
@@ -531,13 +616,12 @@
   // =========================
   // 起動時の既存ツイート
   // =========================
-
   function initializeExistingTweets() {
     const tweets =
       getTweetElements();
 
-    console.log(
-      `[X Auto Refresh] 初期ツイート ${tweets.length}件を確認`
+    log(
+      `初期ツイート ${tweets.length}件を確認`
     );
 
     for (
@@ -552,7 +636,6 @@
   // =========================
   // 新しいツイート監視
   // =========================
-
   function observeNewTweets() {
     const observer =
       new MutationObserver(
@@ -613,15 +696,14 @@
       }
     );
 
-    console.log(
-      "[X Auto Refresh] 新しいツイートの監視を開始"
+    log(
+      "新しいツイートの監視を開始"
     );
   }
 
   // =========================
   // ツイート処理
   // =========================
-
   function processTweetElement(
     tweetElement
   ) {
@@ -639,7 +721,6 @@
     // =========================
     // 保存済み未読
     // =========================
-
     if (
       unreadTweets.has(
         tweetId
@@ -676,7 +757,6 @@
     // =========================
     // 新規ツイート
     // =========================
-
     registerUnreadTweet(
       tweetId,
       tweetElement
@@ -686,7 +766,6 @@
   // =========================
   // 未読ツイート登録
   // =========================
-
   function registerUnreadTweet(
     tweetId,
     tweetElement
@@ -732,8 +811,8 @@
       tweetElement
     );
 
-    console.log(
-      "[X Auto Refresh] 未読ツイートを登録",
+    log(
+      "未読ツイートを登録",
       tweetId
     );
 
@@ -747,7 +826,6 @@
   // =========================
   // 既読判定
   // =========================
-
   function observeReadStatus(
     tweetId,
     tweetElement
@@ -799,7 +877,6 @@
   // =========================
   // 既読化
   // =========================
-
   function markAsRead(
     tweetId
   ) {
@@ -832,8 +909,8 @@
 
     saveUnreadTweets();
 
-    console.log(
-      "[X Auto Refresh] ツイートを既読化",
+    log(
+      "ツイートを既読化",
       tweetId
     );
   }
@@ -841,7 +918,6 @@
   // =========================
   // 未読ハイライト
   // =========================
-
   function applyUnreadHighlight(
     tweetElement
   ) {
@@ -878,7 +954,6 @@
   // =========================
   // 未読期限切れ処理
   // =========================
-
   function cleanupUnreadTweets() {
     const now =
       Date.now();
@@ -916,8 +991,8 @@
 
         changed = true;
 
-        console.log(
-          "[X Auto Refresh] 未読期限切れ",
+        log(
+          "未読期限切れ",
           tweetId
         );
       }
@@ -931,7 +1006,6 @@
   // =========================
   // 最大100件に制限
   // =========================
-
   function limitUnreadTweets() {
     let changed = false;
 
@@ -971,8 +1045,8 @@
 
       changed = true;
 
-      console.log(
-        "[X Auto Refresh] 古い未読ツイートを削除",
+      log(
+        "古い未読ツイートを削除",
         oldestTweetId
       );
     }
@@ -985,7 +1059,6 @@
   // =========================
   // キーワードハイライト
   // =========================
-
   function applyKeywordHighlights() {
     const tweets =
       getTweetElements();
@@ -1056,7 +1129,6 @@
   // =========================
   // キーワードハイライト解除
   // =========================
-
   function clearKeywordHighlights() {
     const marks =
       document.querySelectorAll(
@@ -1087,7 +1159,6 @@
   // =========================
   // テキストノード取得
   // =========================
-
   function getTextNodes(
     element
   ) {
@@ -1125,7 +1196,6 @@
   // =========================
   // キーワード部分をハイライト
   // =========================
-
   function highlightTextNode(
     textNode,
     keyword
@@ -1220,7 +1290,6 @@
   // =========================
   // ユーザーハイライト
   // =========================
-
   function applyUserHighlights() {
     const tweets =
       getTweetElements();
@@ -1268,7 +1337,6 @@
   // =========================
   // ユーザーハイライト解除
   // =========================
-
   function clearUserHighlights() {
     const tweets =
       document.querySelectorAll(
@@ -1288,7 +1356,6 @@
   // =========================
   // ユーザーID取得
   // =========================
-
   function getTweetUsername(
     tweetElement
   ) {
@@ -1321,7 +1388,6 @@
   // =========================
   // ツイート一覧取得
   // =========================
-
   function getTweetElements() {
     return document.querySelectorAll(
       'article[data-testid="tweet"]'
@@ -1331,7 +1397,6 @@
   // =========================
   // ツイートID取得
   // =========================
-
   function getTweetId(
     tweetElement
   ) {
@@ -1364,7 +1429,6 @@
   // =========================
   // ホームTL判定
   // =========================
-
   function isHomeTimeline() {
     const path =
       window.location.pathname;
@@ -1377,14 +1441,16 @@
   }
 
   // =========================
-  // 新着ツイートボタン検索
+  // 新着ポストボタン検索
   // =========================
-
   function findNewTweetsButton() {
     const elements =
       document.querySelectorAll(
-        'a, button, [role="button"]'
+        "button, [role=\"button\"]"
       );
+
+    let countButton = null;
+    let normalButton = null;
 
     for (
       const element of elements
@@ -1399,21 +1465,42 @@
           element.innerText ||
           element.textContent ||
           ""
-        ).trim();
+        )
+          .trim()
+          .replace(
+            /\s+/g,
+            " "
+          );
 
       const combined =
         (
           ariaLabel +
           " " +
           text
-        ).toLowerCase();
+        )
+          .toLowerCase();
 
+      // -------------------------
+      // 「N 件のポストを表示」
+      // -------------------------
+      if (
+        /^\d+\s*件のポストを表示$/
+          .test(text)
+      ) {
+        countButton = element;
+        continue;
+      }
+
+      // -------------------------
+      // 「新しいポストを表示」
+      // 「新しいポストがあります」
+      // -------------------------
       if (
         combined.includes(
-          "新しいポスト"
+          "新しいポストを表示"
         ) ||
         combined.includes(
-          "新しいポストを表示"
+          "新しいポストがあります"
         ) ||
         combined.includes(
           "show new posts"
@@ -1422,10 +1509,11 @@
           "see new posts"
         )
       ) {
-        return element;
+        normalButton = element;
       }
     }
 
-    return null;
+    // 件数表示を優先
+    return countButton || normalButton || null;
   }
 })();

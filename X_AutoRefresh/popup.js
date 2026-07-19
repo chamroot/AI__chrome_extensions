@@ -8,11 +8,10 @@ const scheduleSettingsElement = document.getElementById("scheduleSettings");
 const scheduleStartElement = document.getElementById("scheduleStart");
 const scheduleEndElement = document.getElementById("scheduleEnd");
 const scheduleDayElements = document.querySelectorAll('input[name="scheduleDay"]');
-
+const consoleLogEnabledElement = document.getElementById("consoleLogEnabled");
 const keywordInput = document.getElementById("keywordInput");
 const addKeywordButton = document.getElementById("addKeyword");
 const keywordList = document.getElementById("keywordList");
-
 const userInput = document.getElementById("userInput");
 const addUserButton = document.getElementById("addUser");
 const userList = document.getElementById("userList");
@@ -26,6 +25,7 @@ const extensionVersionElement = document.getElementById("extensionVersion");
 const extensionIconElement = document.getElementById("extensionIcon");
 
 if (extensionNameElement) extensionNameElement.textContent = manifest.name;
+
 if (extensionVersionElement) extensionVersionElement.textContent = "v" + manifest.version;
 
 if (manifest.icons && manifest.icons["48"] && extensionIconElement) {
@@ -43,7 +43,8 @@ const defaultSettings = {
   scheduleEnabled: false,
   scheduleDays: [],
   scheduleStartTime: "00:00",
-  scheduleEndTime: "23:59"
+  scheduleEndTime: "23:59",
+  consoleLogEnabled: true
 };
 
 chrome.storage.local.get(defaultSettings, (settings) => {
@@ -52,6 +53,7 @@ chrome.storage.local.get(defaultSettings, (settings) => {
   scheduleEnabledElement.checked = settings.scheduleEnabled;
   scheduleStartElement.value = settings.scheduleStartTime;
   scheduleEndElement.value = settings.scheduleEndTime;
+  consoleLogEnabledElement.checked = settings.consoleLogEnabled;
 
   for (const dayElement of scheduleDayElements) {
     const day = Number(dayElement.value);
@@ -68,12 +70,17 @@ chrome.storage.local.get(defaultSettings, (settings) => {
 // =========================
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== "local") return;
-  
+
   if (changes.highlightKeywords) {
     renderKeywords(changes.highlightKeywords.newValue || []);
   }
+
   if (changes.highlightUsers) {
     renderUsers(changes.highlightUsers.newValue || []);
+  }
+
+  if (changes.consoleLogEnabled) {
+    consoleLogEnabledElement.checked = changes.consoleLogEnabled.newValue;
   }
 });
 
@@ -93,6 +100,10 @@ scheduleEnabledElement.addEventListener("change", () => {
   updateScheduleDisabledState();
 });
 
+consoleLogEnabledElement.addEventListener("change", () => {
+  chrome.storage.local.set({ consoleLogEnabled: consoleLogEnabledElement.checked });
+});
+
 for (const dayElement of scheduleDayElements) {
   dayElement.addEventListener("change", saveSchedule);
 }
@@ -102,9 +113,10 @@ for (const dayElement of scheduleDayElements) {
   element.addEventListener("input", () => {
     element.value = sanitizeTimeInput(element.value);
   });
-  
+
   element.addEventListener("change", () => {
     const normalized = normalizeTime(element.value);
+
     if (normalized) {
       element.value = normalized;
       saveSchedule();
@@ -114,22 +126,26 @@ for (const dayElement of scheduleDayElements) {
 
 // キーワード・ユーザー追加イベント
 addKeywordButton.addEventListener("click", addKeyword);
-keywordInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addKeyword(); });
+keywordInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") addKeyword();
+});
 
 addUserButton.addEventListener("click", addUser);
-userInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addUser(); });
+userInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") addUser();
+});
 
 // =========================
 // 各種機能関数
 // =========================
-
 function updateScheduleDisabledState() {
   const disabled = !scheduleEnabledElement.checked;
   scheduleSettingsElement.classList.toggle("disabled", disabled);
-  
+
   for (const dayElement of scheduleDayElements) {
     dayElement.disabled = disabled;
   }
+
   scheduleStartElement.disabled = disabled;
   scheduleEndElement.disabled = disabled;
 }
@@ -149,24 +165,30 @@ function saveSchedule() {
 function sanitizeTimeInput(value) {
   let digits = value.replace(/[^0-9]/g, "");
   digits = digits.slice(0, 4);
+
   if (digits.length > 2) {
     return digits.slice(0, 2) + ":" + digits.slice(2);
   }
+
   return digits;
 }
 
 function normalizeTime(value) {
   const time = value.trim();
+
   if (!time) return null;
 
   const sanitized = sanitizeTimeInput(time);
   const match = sanitized.match(/^(\d{1,2}):(\d{2})$/);
+
   if (!match) return null;
 
   const hour = Number(match[1]);
   const minute = Number(match[2]);
 
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    return null;
+  }
 
   return String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
 }
@@ -174,12 +196,15 @@ function normalizeTime(value) {
 // 登録・削除ロジック
 function addKeyword() {
   const keyword = keywordInput.value.trim();
+
   if (!keyword) return;
 
   chrome.storage.local.get({ highlightKeywords: [] }, (settings) => {
     const keywords = settings.highlightKeywords;
+
     if (!keywords.includes(keyword)) {
       keywords.push(keyword);
+
       chrome.storage.local.set({ highlightKeywords: keywords }, () => {
         keywordInput.value = "";
       });
@@ -198,12 +223,15 @@ function removeKeyword(keyword) {
 
 function addUser() {
   let username = userInput.value.trim().replace(/^@/, "");
+
   if (!username) return;
 
   chrome.storage.local.get({ highlightUsers: [] }, (settings) => {
     const users = settings.highlightUsers;
+
     if (!users.includes(username)) {
       users.push(username);
+
       chrome.storage.local.set({ highlightUsers: users }, () => {
         userInput.value = "";
       });
@@ -223,7 +251,6 @@ function removeUser(username) {
 // =========================
 // UIレンダリング関数
 // =========================
-
 function renderKeywords(keywords) {
   keywordList.innerHTML = "";
 
@@ -242,7 +269,9 @@ function renderKeywords(keywords) {
     const text = document.createElement("span");
     text.textContent = keyword;
 
-    const removeButton = createRemoveButton(() => { removeKeyword(keyword); });
+    const removeButton = createRemoveButton(() => {
+      removeKeyword(keyword);
+    });
 
     item.appendChild(text);
     item.appendChild(removeButton);
@@ -268,7 +297,9 @@ function renderUsers(users) {
     const text = document.createElement("span");
     text.textContent = "@" + username;
 
-    const removeButton = createRemoveButton(() => { removeUser(username); });
+    const removeButton = createRemoveButton(() => {
+      removeUser(username);
+    });
 
     item.appendChild(text);
     item.appendChild(removeButton);

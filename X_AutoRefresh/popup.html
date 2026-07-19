@@ -1,381 +1,385 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>X TL Auto Refresh</title>
+<meta charset="UTF-8">
+<title>X TL Auto Refresh</title>
+<style>
+:root {
+  --bg: #0f0f11;
+  --card: #18181b;
+  --input: #222225;
+  --text: #f4f4f5;
+  --subtext: #a1a1aa;
+  --border: #2f2f35;
+  --primary: rgb(120, 86, 255);
+  --primary-light: rgba(120, 86, 255, 0.15);
+  --danger: #ff6b6b;
+}
 
-  <style>
-    :root {
-      --bg: #0f0f11;
-      --card: #18181b;
-      --input: #222225;
-      --text: #f4f4f5;
-      --subtext: #a1a1aa;
-      --border: #2f2f35;
-      --primary: rgb(120, 86, 255);
-      --primary-light: rgba(120, 86, 255, 0.15);
-      --danger: #ff6b6b;
-    }
+* {
+  box-sizing: border-box;
+}
 
-    * {
-      box-sizing: border-box;
-    }
+body {
+  width: 340px;
+  margin: 0;
+  padding: 16px;
+  font-family: system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
 
-    body {
-      width: 340px;
-      margin: 0;
-      padding: 16px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
+/* =========================
+  ヘッダー
+========================== */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
 
-    /* =========================
-      ヘッダー
-    ========================== */
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 16px;
-    }
+.title-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
-    .title-area {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+.extension-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  border-radius: 6px;
+}
 
-    .extension-icon {
-      width: 24px;
-      height: 24px;
-      object-fit: contain;
-      border-radius: 6px;
-    }
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
 
-    .title {
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: -0.3px;
-    }
+.version {
+  font-size: 10px;
+  color: var(--subtext);
+}
 
-    .version {
-      font-size: 10px;
-      color: var(--subtext);
-    }
+/* =========================
+  セクション
+========================== */
+.section {
+  margin-bottom: 12px;
+  padding: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
 
-    /* =========================
-      セクション
-    ========================== */
-    .section {
-      margin-bottom: 12px;
-      padding: 14px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-    }
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 
-    .section-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-    }
+.section-title {
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
 
-    .section-title {
-      margin-bottom: 12px;
-      font-size: 13px;
-      font-weight: 700;
-    }
+.section-header .section-title {
+  margin-bottom: 0;
+}
 
-    .section-header .section-title {
-      margin-bottom: 0;
-    }
+.section-content {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
 
-    /* =========================
-      トグル
-    ========================== */
-    .toggle {
-      position: relative;
-      display: inline-block;
-      width: 42px;
-      height: 24px;
-    }
+/* =========================
+  トグル
+========================== */
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+}
 
-    .toggle input {
-      width: 0;
-      height: 0;
-      opacity: 0;
-    }
+.toggle input {
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
 
-    .toggle-slider {
-      position: absolute;
-      inset: 0;
-      cursor: pointer;
-      background: #3f3f46;
-      border-radius: 999px;
-      transition: 0.2s;
-    }
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  background: #3f3f46;
+  border-radius: 999px;
+  transition: 0.2s;
+}
 
-    .toggle-slider::before {
-      content: "";
-      position: absolute;
-      width: 18px;
-      height: 18px;
-      left: 3px;
-      top: 3px;
-      background: #ffffff;
-      border-radius: 50%;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-      transition: 0.2s;
-    }
+.toggle-slider::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  transition: 0.2s;
+}
 
-    .toggle input:checked + .toggle-slider {
-      background: var(--primary);
-    }
+.toggle input:checked + .toggle-slider {
+  background: var(--primary);
+}
 
-    .toggle input:checked + .toggle-slider::before {
-      transform: translateX(18px);
-    }
+.toggle input:checked + .toggle-slider::before {
+  transform: translateX(18px);
+}
 
-    /* =========================
-      設定行
-    ========================== */
-    .setting-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
+/* =========================
+  設定行
+========================== */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
 
-    .setting-label {
-      font-size: 13px;
-      color: var(--subtext);
-    }
+.setting-label {
+  font-size: 13px;
+  color: var(--subtext);
+}
 
-    #interval {
-      width: 130px;
-    }
+#interval {
+  width: 130px;
+}
 
-    select,
-    input[type="text"] {
-      width: 100%;
-      padding: 8px 10px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--input);
-      color: var(--text);
-      font-size: 13px;
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
+select,
+input[type="text"] {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
 
-    select:focus,
-    input[type="text"]:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px var(--primary-light);
-    }
+select:focus,
+input[type="text"]:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
 
-    select option {
-      background: var(--input);
-      color: var(--text);
-    }
+select option {
+  background: var(--input);
+  color: var(--text);
+}
 
-    input::placeholder {
-      color: #71717a;
-    }
+input::placeholder {
+  color: #71717a;
+}
 
-    input:disabled,
-    select:disabled {
-      cursor: not-allowed;
-      opacity: 0.5;
-    }
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
 
-    /* =========================
-      スケジュール
-    ========================== */
-    .schedule-settings {
-      margin-top: 12px;
-      padding-top: 12px;
-      border-top: 1px solid var(--border);
-      transition: opacity 0.2s;
-    }
+/* =========================
+  スケジュール
+========================== */
+.schedule-settings {
+  transition: opacity 0.2s;
+}
 
-    .schedule-settings.disabled {
-      opacity: 0.45;
-    }
+.schedule-settings.disabled .setting-label,
+.schedule-settings.disabled .day-text,
+.schedule-settings.disabled .time-label,
+.schedule-settings.disabled input {
+  opacity: 0.45;
+}
 
-    .day-list {
-      display: flex;
-      gap: 5px;
-      margin-top: 10px;
-    }
+.day-list {
+  display: flex;
+  gap: 5px;
+  margin-top: 5px;
+}
 
-    .day-label {
-      flex: 1;
-      cursor: pointer;
-    }
+.day-label {
+  flex: 1;
+  cursor: pointer;
+}
 
-    .day-label input {
-      display: none;
-    }
+.day-label input {
+  display: none;
+}
 
-    .day-text {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 30px;
-      border: 1px solid var(--border);
-      border-radius: 7px;
-      font-size: 11px;
-      color: var(--subtext);
-      transition: 0.2s;
-    }
+.day-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 11px;
+  color: var(--subtext);
+  transition: 0.2s;
+}
 
-    .day-label input:checked + .day-text {
-      background: var(--primary);
-      border-color: var(--primary);
-      color: #ffffff;
-    }
+.day-label input:checked + .day-text {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
 
-    .day-label input:disabled + .day-text {
-      cursor: not-allowed;
-    }
+.day-label input:disabled + .day-text {
+  cursor: not-allowed;
+}
 
-    .time-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-top: 10px;
-    }
+.time-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
 
-    .time-item {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
+.time-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
 
-    .time-label {
-      font-size: 11px;
-      color: var(--subtext);
-    }
+.time-label {
+  font-size: 13px;
+  color: var(--subtext);
+}
 
-    /* =========================
-      入力追加
-    ========================== */
-    .input-row {
-      display: flex;
-      gap: 6px;
-    }
+/* =========================
+  入力追加
+========================== */
+.input-row {
+  display: flex;
+  gap: 6px;
+}
 
-    .input-row input {
-      flex: 1;
-    }
+.input-row input {
+  flex: 1;
+}
 
-    button {
-      border: none;
-      border-radius: 8px;
-      background: var(--primary);
-      color: #ffffff;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: 0.2s;
-    }
+button {
+  border: none;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
 
-    .input-row button {
-      padding: 0 12px;
-    }
+.input-row button {
+  padding: 0 12px;
+}
 
-    button:hover {
-      opacity: 0.88;
-    }
+button:hover {
+  opacity: 0.88;
+}
 
-    /* =========================
-      登録リスト
-    ========================== */
-    .item-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-top: 10px;
-    }
+/* =========================
+  登録リスト
+========================== */
+.item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
 
-    .item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 10px;
-      background: var(--input);
-      border-radius: 7px;
-      font-size: 12px;
-    }
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--input);
+  border-radius: 7px;
+  font-size: 12px;
+}
 
-    .remove-button {
-      padding: 0;
-      background: transparent;
-      color: #71717a;
-      font-size: 17px;
-      line-height: 1;
-    }
+.remove-button {
+  padding: 0;
+  background: transparent;
+  color: #71717a;
+  font-size: 17px;
+  line-height: 1;
+}
 
-    .remove-button:hover {
-      color: var(--danger);
-    }
+.remove-button:hover {
+  color: var(--danger);
+}
 
-    .empty {
-      padding: 6px 0;
-      font-size: 11px;
-      color: var(--subtext);
-    }
+.empty {
+  padding: 6px 0;
+  font-size: 11px;
+  color: var(--subtext);
+}
 
-    /* =========================
-      注釈
-    ========================== */
-    .status {
-      padding: 4px 2px;
-      font-size: 10px;
-      line-height: 1.6;
-      color: var(--subtext);
-      text-align: left;
-    }
+/* =========================
+  注釈
+========================== */
+.status {
+  padding: 4px 2px;
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--subtext);
+  text-align: left;
+}
 
-    .status ul {
-      margin: 0;
-      padding-left: 18px;
-    }
+.status ul {
+  margin: 0;
+  padding-left: 18px;
+}
 
-    .status li {
-      padding-left: 2px;
-    }
+.status li {
+  padding-left: 2px;
+}
 
-    .status li::marker {
-      color: var(--primary);
-    }
-  </style>
+.status li::marker {
+  color: var(--primary);
+}
+</style>
 </head>
-
 <body>
 
-  <!-- ヘッダー -->
-  <div class="header">
-    <div class="title-area">
-      <img id="extensionIcon" class="extension-icon" alt="">
-      <div class="title" id="extensionName"></div>
-    </div>
-    <div class="version" id="extensionVersion"></div>
+<!-- ヘッダー -->
+<div class="header">
+  <div class="title-area">
+    <img id="extensionIcon" class="extension-icon" alt="">
+    <div class="title" id="extensionName"></div>
+  </div>
+  <div class="version" id="extensionVersion"></div>
+</div>
+
+<!-- 自動更新 -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-title">自動更新</div>
+    <label class="toggle">
+      <input type="checkbox" id="enabled">
+      <span class="toggle-slider"></span>
+    </label>
   </div>
 
-  <!-- 自動更新 -->
-  <div class="section">
-    <div class="section-header">
-      <div class="section-title">自動更新</div>
-      <label class="toggle">
-        <input type="checkbox" id="enabled">
-        <span class="toggle-slider"></span>
-      </label>
-    </div>
-
+  <div class="section-content">
     <div class="setting-row">
       <span class="setting-label">更新間隔</span>
       <select id="interval">
@@ -388,91 +392,118 @@
       </select>
     </div>
   </div>
+</div>
 
-  <!-- スケジュール -->
-  <div class="section">
-    <div class="section-header">
-      <div class="section-title">スケジュール</div>
-      <label class="toggle">
-        <input type="checkbox" id="scheduleEnabled">
-        <span class="toggle-slider"></span>
+<!-- スケジュール -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-title">スケジュール</div>
+    <label class="toggle">
+      <input type="checkbox" id="scheduleEnabled">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+
+  <div id="scheduleSettings" class="section-content schedule-settings">
+    <div class="setting-label">曜日</div>
+    <div class="day-list">
+      <label class="day-label">
+        <input type="checkbox" name="scheduleDay" value="1">
+        <span class="day-text">月</span>
+      </label>
+      <label class="day-label">
+        <input type="checkbox" name="scheduleDay" value="2">
+        <span class="day-text">火</span>
+      </label>
+      <label class="day-label">
+        <input type="checkbox" name="scheduleDay" value="3">
+        <span class="day-text">水</span>
+      </label>
+      <label class="day-label">
+        <input type="checkbox" name="scheduleDay" value="4">
+        <span class="day-text">木</span>
+      </label>
+      <label class="day-label">
+        <input type="checkbox" name="scheduleDay" value="5">
+        <span class="day-text">金</span>
+      </label>
+      <label class="day-label">
+        <input type="checkbox" name="scheduleDay" value="6">
+        <span class="day-text">土</span>
+      </label>
+      <label class="day-label">
+        <input type="checkbox" name="scheduleDay" value="0">
+        <span class="day-text">日</span>
       </label>
     </div>
 
-    <div id="scheduleSettings" class="schedule-settings">
-      <div class="setting-label">曜日</div>
-      <div class="day-list">
-        <label class="day-label">
-          <input type="checkbox" name="scheduleDay" value="1">
-          <span class="day-text">月</span>
-        </label>
-        <label class="day-label">
-          <input type="checkbox" name="scheduleDay" value="2">
-          <span class="day-text">火</span>
-        </label>
-        <label class="day-label">
-          <input type="checkbox" name="scheduleDay" value="3">
-          <span class="day-text">水</span>
-        </label>
-        <label class="day-label">
-          <input type="checkbox" name="scheduleDay" value="4">
-          <span class="day-text">木</span>
-        </label>
-        <label class="day-label">
-          <input type="checkbox" name="scheduleDay" value="5">
-          <span class="day-text">金</span>
-        </label>
-        <label class="day-label">
-          <input type="checkbox" name="scheduleDay" value="6">
-          <span class="day-text">土</span>
-        </label>
-        <label class="day-label">
-          <input type="checkbox" name="scheduleDay" value="0">
-          <span class="day-text">日</span>
-        </label>
+    <div class="time-row">
+      <div class="time-item">
+        <div class="time-label">開始時刻</div>
+        <input type="text" id="scheduleStart" placeholder="00:00" maxlength="5" inputmode="numeric" autocomplete="off">
       </div>
-
-      <div class="time-row">
-        <div class="time-item">
-          <div class="time-label">開始時刻</div>
-          <input type="text" id="scheduleStart" placeholder="00:00" maxlength="5" inputmode="numeric" autocomplete="off">
-        </div>
-        <div class="time-item">
-          <div class="time-label">終了時刻</div>
-          <input type="text" id="scheduleEnd" placeholder="23:59" maxlength="5" inputmode="numeric" autocomplete="off">
-        </div>
+      <div class="time-item">
+        <div class="time-label">終了時刻</div>
+        <input type="text" id="scheduleEnd" placeholder="23:59" maxlength="5" inputmode="numeric" autocomplete="off">
       </div>
     </div>
   </div>
+</div>
 
-  <!-- キーワードハイライト -->
-  <div class="section">
+<!-- キーワードハイライト -->
+<div class="section">
+  <div class="section-header">
     <div class="section-title">キーワードハイライト</div>
+  </div>
+
+  <div class="section-content">
     <div class="input-row">
       <input type="text" id="keywordInput" placeholder="キーワードを入力">
       <button id="addKeyword">追加</button>
     </div>
     <div id="keywordList" class="item-list"></div>
   </div>
+</div>
 
-  <!-- ユーザーハイライト -->
-  <div class="section">
+<!-- ユーザーハイライト -->
+<div class="section">
+  <div class="section-header">
     <div class="section-title">ユーザーハイライト</div>
+  </div>
+
+  <div class="section-content">
     <div class="input-row">
-      <input type="text" id="userInput" placeholder="@ユーザーID">
+      <input type="text" id="userInput" placeholder="@ユーザーIDを入力">
       <button id="addUser">追加</button>
     </div>
     <div id="userList" class="item-list"></div>
   </div>
+</div>
 
-  <!-- 注釈 -->
-  <div class="status">
-    <ul>
-      <li>自動更新は、設定した曜日・時間帯にのみ動作します。</li>
-      <li>スクロール中は自動更新を一時停止します。</li>
-    </ul>
+<!-- コンソールログ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-title">コンソールログ</div>
+    <label class="toggle">
+      <input type="checkbox" id="consoleLogEnabled">
+      <span class="toggle-slider"></span>
+    </label>
   </div>
 
-  <script src="popup.js"></script>
+  <div class="section-content">
+    <div class="setting-label">コンソールにログを出力します。</div>
+  </div>
+</div>
+
+<!-- 注釈 -->
+<div class="status">
+  <ul>
+    <li>スケジュールがONの場合は設定した曜日・時間帯にのみ自動更新されます。</li>
+    <li>スクロール中は自動更新を一時停止します。</li>
+  </ul>
+</div>
+
+<script src="popup.js"></script>
+
 </body>
 </html>
