@@ -83,6 +83,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 12px;
+  cursor: pointer;
 }
 
 .tab-button.active {
@@ -376,6 +377,35 @@ button:hover {
 }
 
 /* =========================
+  統計データ
+========================== */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.stat-card {
+  padding: 10px 8px;
+  background: var(--input);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1.2;
+}
+
+.stat-label {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--subtext);
+}
+
+/* =========================
   注釈
 ========================== */
 .status {
@@ -420,6 +450,7 @@ button:hover {
   <button id="debugTab" class="tab-button">デバッグ</button>
 </div>
 
+<!-- 設定タブ -->
 <div id="settingsTabContent" class="tab-content active">
   <!-- 自動更新 -->
   <div class="section">
@@ -541,7 +572,36 @@ button:hover {
   </div>
 </div>
 
+<!-- デバッグタブ -->
 <div id="debugTabContent" class="tab-content">
+  <!-- 本日の統計データ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">本日の統計データ</div>
+    </div>
+
+    <div class="section-content">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="todayRefreshCount">0</div>
+          <div class="stat-label">本日の自動更新回数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="todayReadCount">0</div>
+          <div class="stat-label">本日の既読ツイート数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="todayKeywordHitCount">0</div>
+          <div class="stat-label">登録キーワード表示数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="todayUserHitCount">0</div>
+          <div class="stat-label">登録ユーザー表示数</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- コンソールログ -->
   <div class="section">
     <div class="section-header">

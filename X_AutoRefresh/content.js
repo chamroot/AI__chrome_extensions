@@ -51,11 +51,10 @@
   }
 
   // =========================
-  // 安全なメッセージ送信ラッパー（エラー防止ガード付き）
+  // 安全なメッセージ送信ラッパー
   // =========================
   function safeSendMessage(message, callback) {
     try {
-      // Chrome APIまたはruntime、あるいはAPIが準備できていない場合は無視
       if (
         typeof chrome === "undefined" ||
         !chrome.runtime ||
@@ -66,16 +65,13 @@
       }
 
       chrome.runtime.sendMessage(message, (response) => {
-        if (chrome.runtime.lastError) {
-          // 接続断絶時の警告ログを消去して安全に無視
-          return;
-        }
+        if (chrome.runtime.lastError) return;
         if (typeof callback === "function") {
           callback(response);
         }
       });
     } catch (e) {
-      // Extension context invalidated 等のエラーを捕捉して握りつぶす
+      // Extension context invalidated 等を無視
     }
   }
 
@@ -122,23 +118,18 @@
     chrome.storage.onChanged.addListener((changes, areaName) => {
       if (areaName !== "local") return;
 
-      // 内部状態（未読・既読リスト、次回更新時刻）の変更は無視
-      const ignoreKeys = ["unreadTweets", "readTweets", "nextUpdateAt"];
+      const ignoreKeys = ["unreadTweets", "readTweets", "nextUpdateAt", "dailyStats"];
       const updatedKeys = Object.keys(changes).filter(key => !ignoreKeys.includes(key));
 
-      // 監視対象の設定変更がなければ何もしない
       if (updatedKeys.length === 0) return;
 
-      // 変更があった項目だけを { キー: 新しい値 } のオブジェクトにする
       const changedSettings = {};
       for (const key of updatedKeys) {
         changedSettings[key] = changes[key].newValue;
       }
 
-      // 変更のあった項目だけをログ出力
       log("設定の変更を検出:", changedSettings);
 
-      // 値の適用
       if (changes.enabled !== undefined) enabled = changes.enabled.newValue ?? true;
       if (changes.intervalSeconds !== undefined) intervalSeconds = changes.intervalSeconds.newValue ?? 30;
       if (changes.consoleLogEnabled !== undefined) consoleLogEnabled = changes.consoleLogEnabled.newValue ?? true;
@@ -158,7 +149,6 @@
     });
   }
 
-  // 設定値を一括更新する関数
   function applySettings(settings) {
     enabled = settings.enabled ?? true;
     intervalSeconds = settings.intervalSeconds ?? 30;
@@ -296,6 +286,8 @@
 
     isUpdating = true;
     log("TLを更新します");
+
+    safeSendMessage({ type: "recordRefresh" });
 
     const currentScrollY = window.scrollY;
     const activeElement = document.activeElement;
@@ -501,19 +493,79 @@
   function applyKeywordHighlight(tweetElement) {
     if (!tweetElement || !highlightKeywords.length) return;
 
-    const textNodes = getTextNodes(tweetElement);
-    for (const textNode of textNodes) {
-      const text = textNode.nodeValue;
-      if (!text) continue;
+    // 「もりちゃむ」「ちゃむ」のように内包関係がある場合のため、文字数が長い順にソートして処理
+    const sortedKeywords = [...highlightKeywords]
+      .filter(k => Boolean(k))
+      .sort((a, b) => b.length - a.length);
 
-      for (const keyword of highlightKeywords) {
-        if (!keyword) continue;
-        if (text.toLowerCase().includes(keyword.toLowerCase())) {
-          highlightTextNode(textNode, keyword);
-          break;
+    if (!sortedKeywords.length) return;
+
+    let totalHitsInTweet = 0;
+    const textNodes = getTextNodes(tweetElement);
+
+    for (const textNode of textNodes) {
+      totalHitsInTweet += highlightNodeRecursive(textNode, sortedKeywords);
+    }
+
+    if (totalHitsInTweet > 0 && !tweetElement.dataset.xarKeywordCounted) {
+      tweetElement.dataset.xarKeywordCounted = "true";
+      safeSendMessage({ type: "recordHits", keywordHits: totalHitsInTweet });
+    }
+  }
+
+  // テキストノードを再帰的に分解・置換し、ヒット数を返却する
+  function highlightNodeRecursive(node, keywords) {
+    if (node.nodeType !== Node.TEXT_NODE) return 0;
+    const text = node.nodeValue;
+    if (!text) return 0;
+
+    let earliestMatch = null;
+
+    // 現在のテキスト内で最も手前に現れるキーワードを探索
+    for (const keyword of keywords) {
+      const index = text.toLowerCase().indexOf(keyword.toLowerCase());
+      if (index !== -1) {
+        if (!earliestMatch || index < earliestMatch.index || (index === earliestMatch.index && keyword.length > earliestMatch.keyword.length)) {
+          earliestMatch = { keyword, index };
         }
       }
     }
+
+    if (!earliestMatch) return 0;
+
+    const { keyword, index } = earliestMatch;
+    const parent = node.parentNode;
+    if (!parent) return 0;
+
+    const beforeText = text.slice(0, index);
+    const matchedText = text.slice(index, index + keyword.length);
+    const afterText = text.slice(index + keyword.length);
+
+    const mark = document.createElement("mark");
+    mark.dataset.xarKeyword = "true";
+    mark.textContent = matchedText;
+    mark.style.backgroundColor = "rgba(255, 200, 0, 0.35)";
+    mark.style.color = "inherit";
+    mark.style.borderRadius = "3px";
+    mark.style.padding = "1px 2px";
+
+    const beforeNode = beforeText ? document.createTextNode(beforeText) : null;
+    const afterNode = afterText ? document.createTextNode(afterText) : null;
+
+    const fragment = document.createDocumentFragment();
+    if (beforeNode) fragment.appendChild(beforeNode);
+    fragment.appendChild(mark);
+    if (afterNode) fragment.appendChild(afterNode);
+
+    parent.replaceChild(fragment, node);
+
+    let hits = 1;
+
+    // 手前と後ろのノードに対してさらに再帰検索
+    if (beforeNode) hits += highlightNodeRecursive(beforeNode, keywords);
+    if (afterNode) hits += highlightNodeRecursive(afterNode, keywords);
+
+    return hits;
   }
 
   function clearKeywordHighlights() {
@@ -544,32 +596,6 @@
     return textNodes;
   }
 
-  function highlightTextNode(textNode, keyword) {
-    const text = textNode.nodeValue;
-    const index = text.toLowerCase().indexOf(keyword.toLowerCase());
-    if (index === -1) return;
-
-    const fragment = document.createDocumentFragment();
-    const beforeText = text.slice(0, index);
-    const matchedText = text.slice(index, index + keyword.length);
-    const afterText = text.slice(index + keyword.length);
-
-    if (beforeText) fragment.appendChild(document.createTextNode(beforeText));
-
-    const mark = document.createElement("mark");
-    mark.dataset.xarKeyword = "true";
-    mark.textContent = matchedText;
-    mark.style.backgroundColor = "rgba(255, 200, 0, 0.35)";
-    mark.style.color = "inherit";
-    mark.style.borderRadius = "3px";
-    mark.style.padding = "1px 2px";
-    fragment.appendChild(mark);
-
-    if (afterText) fragment.appendChild(document.createTextNode(afterText));
-
-    textNode.parentNode.replaceChild(fragment, textNode);
-  }
-
   function applyUserHighlights() {
     const tweets = getTweetElements();
     for (const tweet of tweets) applyUserHighlight(tweet);
@@ -580,17 +606,20 @@
     const username = getTweetUsername(tweetElement);
     if (!username || !highlightUsers.includes(username)) return;
 
-    tweetElement.dataset.xarUserHighlight = "true";
     tweetElement.style.boxShadow = "inset 4px 0 0 rgb(255, 193, 7)";
+
+    if (!tweetElement.dataset.xarUserCounted) {
+      tweetElement.dataset.xarUserCounted = "true";
+      safeSendMessage({ type: "recordHits", userHits: 1 });
+    }
   }
 
   function clearUserHighlights() {
-    const tweets = document.querySelectorAll(
-      'article[data-testid="tweet"][data-xar-user-highlight="true"]'
-    );
+    const tweets = document.querySelectorAll('article[data-testid="tweet"]');
     for (const tweet of tweets) {
-      delete tweet.dataset.xarUserHighlight;
-      tweet.style.boxShadow = "";
+      if (tweet.style.boxShadow.includes("255, 193, 7")) {
+        tweet.style.boxShadow = "";
+      }
     }
   }
 
