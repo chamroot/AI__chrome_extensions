@@ -3,7 +3,7 @@
   "name": "X Auto Refresh",
   "short_name": "XAR",
   "description": "X(Twitter)のタイムラインを自動更新します。その他機能についてはgithubで確認してください。",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "author": "chamroot",
   "homepage_url": "https://github.com/chamroot/AI__chrome_extensions/tree/main/X_AutoRefresh",
   "permissions": [
@@ -24,8 +24,13 @@
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
-      "32": "icons/icon32.png"
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
     }
+  },
+  "background": {
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {

@@ -15,6 +15,13 @@ const keywordList = document.getElementById("keywordList");
 const userInput = document.getElementById("userInput");
 const addUserButton = document.getElementById("addUser");
 const userList = document.getElementById("userList");
+const settingsTab = document.getElementById("settingsTab");
+const debugTab = document.getElementById("debugTab");
+const settingsTabContent = document.getElementById("settingsTabContent");
+const debugTabContent = document.getElementById("debugTabContent");
+const debugModeEnabledElement = document.getElementById("debugModeEnabled");
+const debugLabelElement = document.getElementById("debugLabel");
+const nextUpdateElement = document.getElementById("nextUpdate");
 
 // =========================
 // 拡張機能情報・アイコン設定
@@ -44,7 +51,8 @@ const defaultSettings = {
   scheduleDays: [],
   scheduleStartTime: "00:00",
   scheduleEndTime: "23:59",
-  consoleLogEnabled: true
+  consoleLogEnabled: true,
+  debugModeEnabled: false
 };
 
 chrome.storage.local.get(defaultSettings, (settings) => {
@@ -54,6 +62,8 @@ chrome.storage.local.get(defaultSettings, (settings) => {
   scheduleStartElement.value = settings.scheduleStartTime;
   scheduleEndElement.value = settings.scheduleEndTime;
   consoleLogEnabledElement.checked = settings.consoleLogEnabled;
+  debugModeEnabledElement.checked = settings.debugModeEnabled;
+  updateDebugMode();
 
   for (const dayElement of scheduleDayElements) {
     const day = Number(dayElement.value);
@@ -82,6 +92,15 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (changes.consoleLogEnabled) {
     consoleLogEnabledElement.checked = changes.consoleLogEnabled.newValue;
   }
+
+  if (changes.debugModeEnabled) {
+    debugModeEnabledElement.checked = changes.debugModeEnabled.newValue;
+    updateDebugMode();
+  }
+
+  if (changes.nextUpdateAt) {
+    updateNextUpdate();
+  }
 });
 
 // =========================
@@ -102,6 +121,25 @@ scheduleEnabledElement.addEventListener("change", () => {
 
 consoleLogEnabledElement.addEventListener("change", () => {
   chrome.storage.local.set({ consoleLogEnabled: consoleLogEnabledElement.checked });
+});
+
+debugModeEnabledElement.addEventListener("change", () => {
+  chrome.storage.local.set({ debugModeEnabled: debugModeEnabledElement.checked });
+  updateDebugMode();
+});
+
+settingsTab.addEventListener("click", () => {
+  settingsTab.classList.add("active");
+  debugTab.classList.remove("active");
+  settingsTabContent.classList.add("active");
+  debugTabContent.classList.remove("active");
+});
+
+debugTab.addEventListener("click", () => {
+  debugTab.classList.add("active");
+  settingsTab.classList.remove("active");
+  debugTabContent.classList.add("active");
+  settingsTabContent.classList.remove("active");
 });
 
 for (const dayElement of scheduleDayElements) {
@@ -135,9 +173,65 @@ userInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") addUser();
 });
 
+setInterval(
+  updateNextUpdate,
+  1000
+);
+
 // =========================
 // 各種機能関数
 // =========================
+function updateDebugMode() {
+  const enabled = debugModeEnabledElement.checked;
+
+  debugLabelElement.hidden = !enabled;
+  nextUpdateElement.hidden = !enabled;
+
+  if (enabled) {
+    updateNextUpdate();
+  }
+}
+function updateNextUpdate() {
+  chrome.storage.local.get(
+    { nextUpdateAt: null },
+    (settings) => {
+      if (!debugModeEnabledElement.checked) {
+        return;
+      }
+
+      if (!settings.nextUpdateAt) {
+        nextUpdateElement.textContent =
+          "次回更新: --";
+        return;
+      }
+
+      const remaining =
+        Math.max(
+          0,
+          settings.nextUpdateAt - Date.now()
+        );
+
+      const seconds =
+        Math.ceil(
+          remaining / 1000
+        );
+
+      if (seconds >= 60) {
+        const minutes =
+          Math.floor(seconds / 60);
+
+        const remainingSeconds =
+          seconds % 60;
+
+        nextUpdateElement.textContent =
+          `次回更新まで: ${minutes}分${remainingSeconds}秒`;
+      } else {
+        nextUpdateElement.textContent =
+          `次回更新まで: ${seconds}秒`;
+      }
+    }
+  );
+}
 function updateScheduleDisabledState() {
   const disabled = !scheduleEnabledElement.checked;
   scheduleSettingsElement.classList.toggle("disabled", disabled);
