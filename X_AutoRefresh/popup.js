@@ -15,6 +15,19 @@ const keywordList = document.getElementById("keywordList");
 const userInput = document.getElementById("userInput");
 const addUserButton = document.getElementById("addUser");
 const userList = document.getElementById("userList");
+const settingsTab = document.getElementById("settingsTab");
+const debugTab = document.getElementById("debugTab");
+const settingsTabContent = document.getElementById("settingsTabContent");
+const debugTabContent = document.getElementById("debugTabContent");
+const debugModeEnabledElement = document.getElementById("debugModeEnabled");
+const debugLabelElement = document.getElementById("debugLabel");
+const nextUpdateElement = document.getElementById("nextUpdate");
+
+// 統計データ用のDOM取得（デバッグタブ用）
+const todayRefreshCountElement = document.getElementById("todayRefreshCount");
+const todayReadCountElement = document.getElementById("todayReadCount");
+const todayKeywordHitCountElement = document.getElementById("todayKeywordHitCount");
+const todayUserHitCountElement = document.getElementById("todayUserHitCount");
 
 // =========================
 // 拡張機能情報・アイコン設定
@@ -32,6 +45,15 @@ if (manifest.icons && manifest.icons["48"] && extensionIconElement) {
   extensionIconElement.src = chrome.runtime.getURL(manifest.icons["48"]);
 }
 
+// 今日の日付を取得 (YYYY-MM-DD フォーマット)
+function getTodayString() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 // =========================
 // 初期設定読み込み
 // =========================
@@ -44,7 +66,14 @@ const defaultSettings = {
   scheduleDays: [],
   scheduleStartTime: "00:00",
   scheduleEndTime: "23:59",
-  consoleLogEnabled: true
+  consoleLogEnabled: true,
+  debugModeEnabled: false,
+  // 統計用データ (日付単位でリセット)
+  statsDate: getTodayString(),
+  todayRefreshCount: 0,
+  todayReadCount: 0,
+  todayKeywordHitCount: 0,
+  todayUserHitCount: 0
 };
 
 chrome.storage.local.get(defaultSettings, (settings) => {
@@ -54,6 +83,8 @@ chrome.storage.local.get(defaultSettings, (settings) => {
   scheduleStartElement.value = settings.scheduleStartTime;
   scheduleEndElement.value = settings.scheduleEndTime;
   consoleLogEnabledElement.checked = settings.consoleLogEnabled;
+  debugModeEnabledElement.checked = settings.debugModeEnabled;
+  updateDebugMode();
 
   for (const dayElement of scheduleDayElements) {
     const day = Number(dayElement.value);
@@ -63,6 +94,9 @@ chrome.storage.local.get(defaultSettings, (settings) => {
   renderKeywords(settings.highlightKeywords);
   renderUsers(settings.highlightUsers);
   updateScheduleDisabledState();
+
+  // 日付チェック (日付が変わっていたらリセット)
+  checkAndResetDailyStats(settings);
 });
 
 // =========================
@@ -81,6 +115,36 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
   if (changes.consoleLogEnabled) {
     consoleLogEnabledElement.checked = changes.consoleLogEnabled.newValue;
+  }
+
+  if (changes.debugModeEnabled) {
+    debugModeEnabledElement.checked = changes.debugModeEnabled.newValue;
+    updateDebugMode();
+  }
+
+  if (changes.nextUpdateAt) {
+    updateNextUpdate();
+  }
+
+  // 統計数値の変更を監視してポップアップに反映
+  if (
+    changes.todayRefreshCount ||
+    changes.todayReadCount ||
+    changes.todayKeywordHitCount ||
+    changes.todayUserHitCount ||
+    changes.statsDate
+  ) {
+    chrome.storage.local.get(
+      {
+        todayRefreshCount: 0,
+        todayReadCount: 0,
+        todayKeywordHitCount: 0,
+        todayUserHitCount: 0
+      },
+      (data) => {
+        renderStats(data);
+      }
+    );
   }
 });
 
@@ -102,6 +166,25 @@ scheduleEnabledElement.addEventListener("change", () => {
 
 consoleLogEnabledElement.addEventListener("change", () => {
   chrome.storage.local.set({ consoleLogEnabled: consoleLogEnabledElement.checked });
+});
+
+debugModeEnabledElement.addEventListener("change", () => {
+  chrome.storage.local.set({ debugModeEnabled: debugModeEnabledElement.checked });
+  updateDebugMode();
+});
+
+settingsTab.addEventListener("click", () => {
+  settingsTab.classList.add("active");
+  debugTab.classList.remove("active");
+  settingsTabContent.classList.add("active");
+  debugTabContent.classList.remove("active");
+});
+
+debugTab.addEventListener("click", () => {
+  debugTab.classList.add("active");
+  settingsTab.classList.remove("active");
+  debugTabContent.classList.add("active");
+  settingsTabContent.classList.remove("active");
 });
 
 for (const dayElement of scheduleDayElements) {
@@ -135,9 +218,53 @@ userInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") addUser();
 });
 
+setInterval(
+  updateNextUpdate,
+  1000
+);
+
 // =========================
 // 各種機能関数
 // =========================
+function updateDebugMode() {
+  const enabled = debugModeEnabledElement.checked;
+
+  debugLabelElement.hidden = !enabled;
+  nextUpdateElement.hidden = !enabled;
+
+  if (enabled) {
+    updateNextUpdate();
+  }
+}
+
+function updateNextUpdate() {
+  chrome.storage.local.get(
+    { nextUpdateAt: null },
+    (settings) => {
+      if (!debugModeEnabledElement.checked) {
+        return;
+      }
+
+      if (!settings.nextUpdateAt) {
+        nextUpdateElement.textContent = "次回更新: --";
+        return;
+      }
+
+      const remaining = Math.max(0, settings.nextUpdateAt - Date.now());
+      const seconds = Math.ceil(remaining / 1000);
+
+      if (seconds >= 60) {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+
+        nextUpdateElement.textContent = `次回更新まで: ${minutes}分${remainingSeconds}秒`;
+      } else {
+        nextUpdateElement.textContent = `次回更新まで: ${seconds}秒`;
+      }
+    }
+  );
+}
+
 function updateScheduleDisabledState() {
   const disabled = !scheduleEnabledElement.checked;
   scheduleSettingsElement.classList.toggle("disabled", disabled);
@@ -307,7 +434,45 @@ function renderUsers(users) {
   }
 }
 
-// 共通ボタン生成関数（関数名を統一）
+// 統計データの描画
+function renderStats(data) {
+  if (todayRefreshCountElement) {
+    todayRefreshCountElement.textContent = (data.todayRefreshCount || 0).toLocaleString();
+  }
+  if (todayReadCountElement) {
+    todayReadCountElement.textContent = (data.todayReadCount || 0).toLocaleString();
+  }
+  if (todayKeywordHitCountElement) {
+    todayKeywordHitCountElement.textContent = (data.todayKeywordHitCount || 0).toLocaleString();
+  }
+  if (todayUserHitCountElement) {
+    todayUserHitCountElement.textContent = (data.todayUserHitCount || 0).toLocaleString();
+  }
+}
+
+// 日付判定 ＆ 日次リセット処理
+function checkAndResetDailyStats(settings) {
+  const today = getTodayString();
+
+  if (settings.statsDate !== today) {
+    // 日付が変わっていれば0リセット
+    const resetData = {
+      statsDate: today,
+      todayRefreshCount: 0,
+      todayReadCount: 0,
+      todayKeywordHitCount: 0,
+      todayUserHitCount: 0
+    };
+    chrome.storage.local.set(resetData, () => {
+      renderStats(resetData);
+    });
+  } else {
+    // 当日であればそのまま描画
+    renderStats(settings);
+  }
+}
+
+// 共通ボタン生成関数
 function createRemoveButton(callback) {
   const button = document.createElement("button");
   button.className = "remove-button";

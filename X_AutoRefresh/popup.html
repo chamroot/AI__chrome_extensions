@@ -63,6 +63,49 @@ body {
   color: var(--subtext);
 }
 
+.debug-label {
+  margin-left: 4px;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.tab-button {
+  flex: 1;
+  padding: 8px;
+  background: var(--card);
+  color: var(--subtext);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tab-button.active {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+.next-update {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--subtext);
+}
+
 /* =========================
   セクション
 ========================== */
@@ -334,6 +377,35 @@ button:hover {
 }
 
 /* =========================
+  統計データ
+========================== */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.stat-card {
+  padding: 10px 8px;
+  background: var(--input);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1.2;
+}
+
+.stat-label {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--subtext);
+}
+
+/* =========================
   注釈
 ========================== */
 .status {
@@ -366,141 +438,199 @@ button:hover {
     <img id="extensionIcon" class="extension-icon" alt="">
     <div class="title" id="extensionName"></div>
   </div>
-  <div class="version" id="extensionVersion"></div>
-</div>
-
-<!-- 自動更新 -->
-<div class="section">
-  <div class="section-header">
-    <div class="section-title">自動更新</div>
-    <label class="toggle">
-      <input type="checkbox" id="enabled">
-      <span class="toggle-slider"></span>
-    </label>
-  </div>
-
-  <div class="section-content">
-    <div class="setting-row">
-      <span class="setting-label">更新間隔</span>
-      <select id="interval">
-        <option value="10">10秒</option>
-        <option value="15">15秒</option>
-        <option value="30">30秒</option>
-        <option value="60">1分</option>
-        <option value="120">2分</option>
-        <option value="300">5分</option>
-      </select>
-    </div>
+  <div class="version">
+    <span id="extensionVersion"></span>
+    <span id="debugLabel" class="debug-label" hidden>DEBUG</span>
   </div>
 </div>
 
-<!-- スケジュール -->
-<div class="section">
-  <div class="section-header">
-    <div class="section-title">スケジュール</div>
-    <label class="toggle">
-      <input type="checkbox" id="scheduleEnabled">
-      <span class="toggle-slider"></span>
-    </label>
-  </div>
+<!-- タブ -->
+<div class="tabs">
+  <button id="settingsTab" class="tab-button active">設定</button>
+  <button id="debugTab" class="tab-button">デバッグ</button>
+</div>
 
-  <div id="scheduleSettings" class="section-content schedule-settings">
-    <div class="setting-label">曜日</div>
-    <div class="day-list">
-      <label class="day-label">
-        <input type="checkbox" name="scheduleDay" value="1">
-        <span class="day-text">月</span>
-      </label>
-      <label class="day-label">
-        <input type="checkbox" name="scheduleDay" value="2">
-        <span class="day-text">火</span>
-      </label>
-      <label class="day-label">
-        <input type="checkbox" name="scheduleDay" value="3">
-        <span class="day-text">水</span>
-      </label>
-      <label class="day-label">
-        <input type="checkbox" name="scheduleDay" value="4">
-        <span class="day-text">木</span>
-      </label>
-      <label class="day-label">
-        <input type="checkbox" name="scheduleDay" value="5">
-        <span class="day-text">金</span>
-      </label>
-      <label class="day-label">
-        <input type="checkbox" name="scheduleDay" value="6">
-        <span class="day-text">土</span>
-      </label>
-      <label class="day-label">
-        <input type="checkbox" name="scheduleDay" value="0">
-        <span class="day-text">日</span>
+<!-- 設定タブ -->
+<div id="settingsTabContent" class="tab-content active">
+  <!-- 自動更新 -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">自動更新</div>
+      <label class="toggle">
+        <input type="checkbox" id="enabled">
+        <span class="toggle-slider"></span>
       </label>
     </div>
 
-    <div class="time-row">
-      <div class="time-item">
-        <div class="time-label">開始時刻</div>
-        <input type="text" id="scheduleStart" placeholder="00:00" maxlength="5" inputmode="numeric" autocomplete="off">
+    <div class="section-content">
+      <div class="setting-row">
+        <span class="setting-label">更新間隔</span>
+        <select id="interval">
+          <option value="30">30秒</option>
+          <option value="60">1分</option>
+          <option value="300">5分</option>
+          <option value="600">10分</option>
+          <option value="1800">30分</option>
+        </select>
       </div>
-      <div class="time-item">
-        <div class="time-label">終了時刻</div>
-        <input type="text" id="scheduleEnd" placeholder="23:59" maxlength="5" inputmode="numeric" autocomplete="off">
+      <div id="nextUpdate" class="next-update" hidden></div>
+    </div>
+  </div>
+
+  <!-- スケジュール -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">スケジュール</div>
+      <label class="toggle">
+        <input type="checkbox" id="scheduleEnabled">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div id="scheduleSettings" class="section-content schedule-settings">
+      <div class="setting-label">曜日</div>
+      <div class="day-list">
+        <label class="day-label">
+          <input type="checkbox" name="scheduleDay" value="1">
+          <span class="day-text">月</span>
+        </label>
+        <label class="day-label">
+          <input type="checkbox" name="scheduleDay" value="2">
+          <span class="day-text">火</span>
+        </label>
+        <label class="day-label">
+          <input type="checkbox" name="scheduleDay" value="3">
+          <span class="day-text">水</span>
+        </label>
+        <label class="day-label">
+          <input type="checkbox" name="scheduleDay" value="4">
+          <span class="day-text">木</span>
+        </label>
+        <label class="day-label">
+          <input type="checkbox" name="scheduleDay" value="5">
+          <span class="day-text">金</span>
+        </label>
+        <label class="day-label">
+          <input type="checkbox" name="scheduleDay" value="6">
+          <span class="day-text">土</span>
+        </label>
+        <label class="day-label">
+          <input type="checkbox" name="scheduleDay" value="0">
+          <span class="day-text">日</span>
+        </label>
+      </div>
+
+      <div class="time-row">
+        <div class="time-item">
+          <div class="time-label">開始時刻</div>
+          <input type="text" id="scheduleStart" placeholder="00:00" maxlength="5" inputmode="numeric" autocomplete="off">
+        </div>
+        <div class="time-item">
+          <div class="time-label">終了時刻</div>
+          <input type="text" id="scheduleEnd" placeholder="23:59" maxlength="5" inputmode="numeric" autocomplete="off">
+        </div>
       </div>
     </div>
   </div>
-</div>
 
-<!-- キーワードハイライト -->
-<div class="section">
-  <div class="section-header">
-    <div class="section-title">キーワードハイライト</div>
-  </div>
-
-  <div class="section-content">
-    <div class="input-row">
-      <input type="text" id="keywordInput" placeholder="キーワードを入力">
-      <button id="addKeyword">追加</button>
+  <!-- キーワードハイライト -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">キーワードハイライト</div>
     </div>
-    <div id="keywordList" class="item-list"></div>
-  </div>
-</div>
 
-<!-- ユーザーハイライト -->
-<div class="section">
-  <div class="section-header">
-    <div class="section-title">ユーザーハイライト</div>
-  </div>
-
-  <div class="section-content">
-    <div class="input-row">
-      <input type="text" id="userInput" placeholder="@ユーザーIDを入力">
-      <button id="addUser">追加</button>
+    <div class="section-content">
+      <div class="input-row">
+        <input type="text" id="keywordInput" placeholder="キーワードを入力">
+        <button id="addKeyword">追加</button>
+      </div>
+      <div id="keywordList" class="item-list"></div>
     </div>
-    <div id="userList" class="item-list"></div>
+  </div>
+
+  <!-- ユーザーハイライト -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">ユーザーハイライト</div>
+    </div>
+
+    <div class="section-content">
+      <div class="input-row">
+        <input type="text" id="userInput" placeholder="@ユーザーIDを入力">
+        <button id="addUser">追加</button>
+      </div>
+      <div id="userList" class="item-list"></div>
+    </div>
+  </div>
+
+  <!-- 注釈 -->
+  <div class="status">
+    <ul>
+      <li>スケジュールがONの場合は設定した曜日・時間帯にのみ自動更新されます。</li>
+      <li>スクロール中は自動更新を一時停止します。</li>
+    </ul>
   </div>
 </div>
 
-<!-- コンソールログ -->
-<div class="section">
-  <div class="section-header">
-    <div class="section-title">コンソールログ</div>
-    <label class="toggle">
-      <input type="checkbox" id="consoleLogEnabled">
-      <span class="toggle-slider"></span>
-    </label>
+<!-- デバッグタブ -->
+<div id="debugTabContent" class="tab-content">
+  <!-- 本日の統計データ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">本日の統計データ</div>
+    </div>
+
+    <div class="section-content">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="todayRefreshCount">0</div>
+          <div class="stat-label">本日の自動更新回数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="todayReadCount">0</div>
+          <div class="stat-label">本日の既読ツイート数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="todayKeywordHitCount">0</div>
+          <div class="stat-label">登録キーワード表示数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="todayUserHitCount">0</div>
+          <div class="stat-label">登録ユーザー表示数</div>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div class="section-content">
-    <div class="setting-label">コンソールにログを出力します。</div>
-  </div>
-</div>
+  <!-- コンソールログ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">コンソールログ</div>
+      <label class="toggle">
+        <input type="checkbox" id="consoleLogEnabled">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
 
-<!-- 注釈 -->
-<div class="status">
-  <ul>
-    <li>スケジュールがONの場合は設定した曜日・時間帯にのみ自動更新されます。</li>
-    <li>スクロール中は自動更新を一時停止します。</li>
-  </ul>
+    <div class="section-content">
+      <div class="setting-label">コンソールにログを出力します。</div>
+    </div>
+  </div>
+
+  <!-- デバッグモード -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">デバッグモード</div>
+      <label class="toggle">
+        <input type="checkbox" id="debugModeEnabled">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="section-content">
+      <div class="setting-label">デバッグ用の情報を表示します。</div>
+    </div>
+  </div>
 </div>
 
 <script src="popup.js"></script>
