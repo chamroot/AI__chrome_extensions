@@ -1,12 +1,61 @@
-document.addEventListener('DOMContentLoaded', async () => {
-  // manifest.json の "name" を動的設定
-  const manifestData = chrome.runtime.getManifest();
-  const titleEl = document.getElementById('app-title');
-  if (titleEl && manifestData.name) {
-    titleEl.textContent = manifestData.name;
+// =========================
+// 安全な初期化実行（DOMContentLoadedの通過対策）
+// =========================
+function runWhenReady(fn) {
+  if (document.readyState !== "loading") {
+    fn();
+  } else {
+    document.addEventListener("DOMContentLoaded", fn);
   }
+}
 
-  const DEFAULT_SETTINGS = {
+runWhenReady(async () => {
+  // =========================
+  // DOM要素の取得
+  // =========================
+  const elements = {
+    appTitle: document.getElementById("app-title"),
+    appVersion: document.getElementById("app-version"),
+    appIcon: document.getElementById("app-icon"),
+    rmsVal: document.getElementById("rms-val"),
+    rmsBar: document.getElementById("rms-bar"),
+    resetBtn: document.getElementById("reset-btn")
+  };
+
+  const controls = {
+    volume: {
+      slider: document.getElementById("vol-slider"),
+      display: document.getElementById("vol-val"),
+      action: "SET_VOLUME",
+      format: (v) => `${Math.round(v * 100)}%`
+    },
+    speed: {
+      slider: document.getElementById("speed-slider"),
+      display: document.getElementById("speed-val"),
+      action: "SET_SPEED",
+      format: (v) => `${Number(v).toFixed(2)}x`
+    },
+    eqLow: {
+      slider: document.getElementById("low-slider"),
+      display: document.getElementById("low-val"),
+      action: "SET_EQ_LOW",
+      format: (v) => `${v} dB`
+    },
+    eqMid: {
+      slider: document.getElementById("mid-slider"),
+      display: document.getElementById("mid-val"),
+      action: "SET_EQ_MID",
+      format: (v) => `${v} dB`
+    },
+    eqHigh: {
+      slider: document.getElementById("high-slider"),
+      display: document.getElementById("high-val"),
+      action: "SET_EQ_HIGH",
+      format: (v) => `${v} dB`
+    }
+  };
+
+  const defaultSettings = {
     volume: 1.0,
     speed: 1.0,
     eqLow: 0,
@@ -14,85 +63,145 @@ document.addEventListener('DOMContentLoaded', async () => {
     eqHigh: 0
   };
 
-  const controls = {
-    volume: { slider: document.getElementById('vol-slider'), display: document.getElementById('vol-val'), action: 'SET_VOLUME', format: (v) => `${Math.round(v * 100)}%` },
-    speed: { slider: document.getElementById('speed-slider'), display: document.getElementById('speed-val'), action: 'SET_SPEED', format: (v) => `${parseFloat(v).toFixed(2)}x` },
-    eqLow: { slider: document.getElementById('low-slider'), display: document.getElementById('low-val'), action: 'SET_EQ_LOW', format: (v) => `${v} dB` },
-    eqMid: { slider: document.getElementById('mid-slider'), display: document.getElementById('mid-val'), action: 'SET_EQ_MID', format: (v) => `${v} dB` },
-    eqHigh: { slider: document.getElementById('high-slider'), display: document.getElementById('high-val'), action: 'SET_EQ_HIGH', format: (v) => `${v} dB` }
-  };
+  // =========================
+  // 拡張機能情報・タイトルの反映
+  // =========================
+  function initAppInfo() {
+    const manifest = chrome.runtime.getManifest();
 
-  const resetBtn = document.getElementById('reset-btn');
-  const rmsBar = document.getElementById('rms-bar');
-  const rmsVal = document.getElementById('rms-val');
+    if (elements.appTitle) {
+      let title = manifest.name || "";
+      if (title.startsWith("__MSG_") && title.endsWith("__")) {
+        const msgKey = title.slice(6, -2);
+        title = chrome.i18n.getMessage(msgKey) || title;
+      }
+      elements.appTitle.textContent = title;
+    }
 
-  let timerId = null;
+    if (elements.appVersion && manifest.version) {
+      elements.appVersion.textContent = `v${manifest.version}`;
+    }
 
-  async function sendToContentScript(action, value) {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab && tab.id) {
-      chrome.tabs.sendMessage(tab.id, { action: action, payload: { value: parseFloat(value) } }).catch(() => {});
+    if (elements.appIcon) {
+      const iconPath = manifest.icons
+        ? (manifest.icons["48"] || manifest.icons["32"] || manifest.icons["16"])
+        : null;
+
+      if (iconPath) {
+        elements.appIcon.src = chrome.runtime.getURL(iconPath);
+        elements.appIcon.style.display = "";
+      } else {
+        elements.appIcon.removeAttribute("src");
+        elements.appIcon.style.display = "none";
+      }
     }
   }
 
-  function applyValue(key, value, shouldSave = true) {
-    const ctrl = controls[key];
-    if (!ctrl) return;
-    ctrl.slider.value = value;
-    ctrl.display.textContent = ctrl.format(value);
-    sendToContentScript(ctrl.action, value);
-    if (shouldSave) chrome.storage.local.set({ [key]: parseFloat(value) });
-  }
-
-  async function loadSettings() {
-    const stored = await chrome.storage.local.get(DEFAULT_SETTINGS);
-    Object.keys(controls).forEach((key) => {
-      applyValue(key, stored[key] !== undefined ? stored[key] : DEFAULT_SETTINGS[key], false);
-    });
-  }
-
-  Object.keys(controls).forEach((key) => {
-    controls[key].slider.addEventListener('input', (e) => applyValue(key, e.target.value, true));
-  });
-
-  // 設定をリセット
-  resetBtn.addEventListener('click', async () => {
-    await chrome.storage.local.clear();
-    await chrome.storage.local.set(DEFAULT_SETTINGS);
-    Object.keys(DEFAULT_SETTINGS).forEach((key) => {
-      applyValue(key, DEFAULT_SETTINGS[key], false);
-    });
-  });
-
-  // RMS メーターのポーリング更新
-  async function updateMeter() {
+  // アクティブなタブIDを取得
+  async function getActiveTabId() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab || !tab.id) return;
+    return tab?.id ?? null;
+  }
 
-    chrome.tabs.sendMessage(tab.id, { action: 'GET_AUDIO_LEVEL' }, (response) => {
+  // content.js へメッセージ送信
+  async function sendToContentScript(action, value) {
+    const tabId = await getActiveTabId();
+    if (!tabId) return;
+
+    try {
+      await chrome.tabs.sendMessage(tabId, {
+        action,
+        payload: { value: parseFloat(value) }
+      });
+    } catch {
+      // content.js が読み込まれていないページでのエラーを非表示でスキップ
+    }
+  }
+
+  // 設定値の反映・画面更新
+  function applyValue(key, value, shouldSave = false) {
+    const ctrl = controls[key];
+    if (!ctrl || !ctrl.slider || !ctrl.display) return;
+
+    const numValue = parseFloat(value);
+    ctrl.slider.value = numValue;
+    ctrl.display.textContent = ctrl.format(numValue);
+    sendToContentScript(ctrl.action, numValue);
+
+    if (shouldSave) {
+      chrome.storage.local.set({ [key]: numValue });
+    }
+  }
+
+  // 設定のロード
+  async function loadSettings() {
+    const stored = await chrome.storage.local.get(defaultSettings);
+    Object.keys(controls).forEach((key) => {
+      const val = stored[key] ?? defaultSettings[key];
+      applyValue(key, val, false);
+    });
+  }
+
+  // イベントリスナーの登録
+  function setupEventListeners() {
+    Object.keys(controls).forEach((key) => {
+      const ctrl = controls[key];
+      if (ctrl.slider) {
+        ctrl.slider.addEventListener("input", (e) => {
+          applyValue(key, e.target.value, true);
+        });
+      }
+    });
+
+    if (elements.resetBtn) {
+      elements.resetBtn.addEventListener("click", async () => {
+        await chrome.storage.local.clear();
+        await chrome.storage.local.set(defaultSettings);
+        Object.keys(defaultSettings).forEach((key) => {
+          applyValue(key, defaultSettings[key], false);
+        });
+      });
+    }
+  }
+
+  // =========================
+  // RMS メーターの更新処理
+  // =========================
+  async function updateMeter() {
+    const tabId = await getActiveTabId();
+    if (!tabId) return;
+
+    chrome.tabs.sendMessage(tabId, { action: "GET_AUDIO_LEVEL" }, (response) => {
       if (chrome.runtime.lastError || !response || response.rms === undefined) {
-        if (rmsVal) rmsVal.textContent = '-∞ dBFS';
-        if (rmsBar) rmsBar.style.width = '0%';
+        if (elements.rmsVal) elements.rmsVal.textContent = "-∞ dBFS";
+        if (elements.rmsBar) elements.rmsBar.style.width = "0%";
         return;
       }
 
       const rmsDb = response.rms;
-      if (rmsVal) {
-        rmsVal.textContent = rmsDb <= -59.5 ? '-∞ dBFS' : `${rmsDb.toFixed(1)} dBFS`;
+      if (elements.rmsVal) {
+        elements.rmsVal.textContent = rmsDb <= -59.5 ? "-∞ dBFS" : `${rmsDb.toFixed(1)} dBFS`;
       }
 
-      // -60dBFS ～ 0dBFS を 0% ～ 100% にマッピング
       const percent = Math.max(0, Math.min(100, ((rmsDb + 60) / 60) * 100));
-      if (rmsBar) {
-        rmsBar.style.width = `${percent}%`;
+      if (elements.rmsBar) {
+        elements.rmsBar.style.width = `${percent}%`;
       }
     });
   }
 
+  // 起動処理
+  initAppInfo();
   await loadSettings();
-  timerId = setInterval(updateMeter, 50);
+  setupEventListeners();
 
-  window.addEventListener('unload', () => {
-    if (timerId) clearInterval(timerId);
-  });
+  // RMSメーターのポーリング
+  const meterIntervalId = setInterval(updateMeter, 50);
+
+  // ポップアップが閉じる際のクリーンアップ (pagehide & unload)
+  const cleanup = () => {
+    if (meterIntervalId) clearInterval(meterIntervalId);
+  };
+  window.addEventListener("pagehide", cleanup);
+  window.addEventListener("unload", cleanup);
 });

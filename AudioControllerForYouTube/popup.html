@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Audio Controller for YouTube</title>
 <style>
 :root {
@@ -24,7 +25,7 @@ body {
   width: 340px;
   margin: 0;
   padding: 16px;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
   user-select: none;
@@ -44,6 +45,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 24px;
 }
 
 .extension-icon {
@@ -53,15 +55,22 @@ body {
   border-radius: 6px;
 }
 
+.extension-icon:not([src]),
+.extension-icon[src=""] {
+  visibility: hidden;
+}
+
 .title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.3px;
+  line-height: 1.2;
 }
 
 .version {
   font-size: 11px;
   color: var(--subtext);
+  font-variant-numeric: tabular-nums;
 }
 
 /* =========================
@@ -82,6 +91,7 @@ body {
 }
 
 .section-title {
+  margin: 0;
   font-size: 13px;
   font-weight: 700;
 }
@@ -125,19 +135,22 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* 横向きスライダー */
+/* スライダー共通 */
 input[type="range"] {
+  outline: none;
+}
+
+.control-row input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
   height: 5px;
   background: var(--input);
   border-radius: 3px;
-  outline: none;
   border: 1px solid var(--border);
 }
 
-input[type="range"]::-webkit-slider-thumb {
+.control-row input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 15px;
@@ -145,11 +158,11 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: 50%;
   background: var(--primary);
   cursor: pointer;
-  transition: transform 0.1s;
+  transition: transform 0.1s ease;
   box-shadow: 0 1px 4px rgba(0,0,0,0.4);
 }
 
-input[type="range"]::-webkit-slider-thumb:hover {
+.control-row input[type="range"]::-webkit-slider-thumb:hover {
   transform: scale(1.15);
 }
 
@@ -184,11 +197,10 @@ input[type="range"]::-webkit-slider-thumb:hover {
   font-weight: 600;
 }
 
-/* 縦向きスライダー (3Band EQ) */
 .eq-col input[type="range"] {
-  writing-mode: bt-lr; /* Firefox */
-  -webkit-appearance: slider-vertical; /* Webkit / Chrome / Edge */
-  accent-color: var(--primary); /* ★ つまみの色を紫に指定 */
+  writing-mode: bt-lr;
+  -webkit-appearance: slider-vertical;
+  accent-color: var(--primary);
   width: 8px;
   height: 90px;
   padding: 0;
@@ -229,7 +241,8 @@ input[type="range"]::-webkit-slider-thumb:hover {
   height: 100%;
   width: 0%;
   background: linear-gradient(90deg, var(--primary) 70%, var(--danger) 95%);
-  transition: width 0.08s ease-out;
+  transition: width 0.05s ease-out;
+  will-change: width;
 }
 
 /* =========================
@@ -245,7 +258,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
   margin-top: 2px;
 }
 
@@ -254,77 +267,82 @@ input[type="range"]::-webkit-slider-thumb:hover {
   color: var(--text);
   border-color: var(--subtext);
 }
+
+.reset-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
 </style>
 </head>
 <body>
 
 <!-- ヘッダー -->
-<div class="header">
+<header class="header">
   <div class="title-area">
-    <img src="icons/icon32.png" class="extension-icon" alt="icon">
-    <div class="title" id="app-title">Audio Controller</div>
+    <img id="app-icon" class="extension-icon" alt="アイコン">
+    <div class="title" id="app-title"></div>
   </div>
-  <div class="version">v0.0.1</div>
-</div>
+  <div class="version" id="app-version"></div>
+</header>
 
 <!-- 基本操作 -->
-<div class="section">
+<section class="section">
   <div class="section-header">
-    <div class="section-title">基本操作</div>
+    <h2 class="section-title">基本操作</h2>
   </div>
 
   <div class="section-content">
     <!-- 音量: 0% ～ 200% -->
     <div class="control-row">
       <div class="control-label-wrap">
-        <span class="control-label">音量</span>
+        <label for="vol-slider" class="control-label">音量</label>
         <span class="control-value" id="vol-val">100%</span>
       </div>
-      <input type="range" id="vol-slider" min="0" max="2" step="0.02" value="1">
+      <input type="range" id="vol-slider" min="0" max="2" step="0.02" value="1" aria-label="音量調整">
     </div>
 
     <!-- 再生速度: 0.25x ～ 10.00x -->
     <div class="control-row">
       <div class="control-label-wrap">
-        <span class="control-label">再生速度</span>
+        <label for="speed-slider" class="control-label">再生速度</label>
         <span class="control-value" id="speed-val">1.00x</span>
       </div>
-      <input type="range" id="speed-slider" min="0.25" max="10" step="0.05" value="1">
+      <input type="range" id="speed-slider" min="0.25" max="10" step="0.05" value="1" aria-label="再生速度調整">
     </div>
   </div>
-</div>
+</section>
 
 <!-- 3バンド イコライザー -->
-<div class="section">
+<section class="section">
   <div class="section-header">
-    <div class="section-title">3Band EQ</div>
+    <h2 class="section-title">3Band EQ</h2>
   </div>
 
   <div class="section-content">
     <div class="eq-grid">
       <div class="eq-col">
-        <span class="control-label">LOW</span>
+        <label for="low-slider" class="control-label">LOW</label>
         <span class="control-value" id="low-val">0 dB</span>
-        <input type="range" id="low-slider" min="-20" max="20" step="1" value="0">
+        <input type="range" id="low-slider" min="-20" max="20" step="1" value="0" aria-label="低音イコライザー">
       </div>
       <div class="eq-col">
-        <span class="control-label">MID</span>
+        <label for="mid-slider" class="control-label">MID</label>
         <span class="control-value" id="mid-val">0 dB</span>
-        <input type="range" id="mid-slider" min="-20" max="20" step="1" value="0">
+        <input type="range" id="mid-slider" min="-20" max="20" step="1" value="0" aria-label="中音イコライザー">
       </div>
       <div class="eq-col">
-        <span class="control-label">HIGH</span>
+        <label for="high-slider" class="control-label">HIGH</label>
         <span class="control-value" id="high-val">0 dB</span>
-        <input type="range" id="high-slider" min="-20" max="20" step="1" value="0">
+        <input type="range" id="high-slider" min="-20" max="20" step="1" value="0" aria-label="高音イコライザー">
       </div>
     </div>
   </div>
-</div>
+</section>
 
 <!-- オーディオモニター -->
-<div class="section">
+<section class="section">
   <div class="section-header">
-    <div class="section-title">オーディオモニター</div>
+    <h2 class="section-title">オーディオモニター</h2>
   </div>
 
   <div class="section-content">
@@ -338,7 +356,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
       </div>
     </div>
   </div>
-</div>
+</section>
 
 <button class="reset-btn" id="reset-btn">設定をリセット</button>
 
