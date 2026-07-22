@@ -32,36 +32,46 @@ function getTodayString() {
   return `${year}-${month}-${day}`;
 }
 
+// 統計処理の並列実行による競合（上書き破壊）を防ぐキュー
+let statQueue = Promise.resolve();
+
 // 統計データを安全にインクリメント（日付切り替えも自動判定）
-async function incrementDailyStat(key, amount = 1) {
+function incrementDailyStat(key, amount = 1) {
   if (amount <= 0) return;
 
-  const today = getTodayString();
-  const current = await chrome.storage.local.get([
-    "statsDate",
-    "todayRefreshCount",
-    "todayReadCount",
-    "todayKeywordHitCount",
-    "todayUserHitCount"
-  ]);
+  // 順番に実行されるようにキューへ繋ぐ
+  statQueue = statQueue.then(async () => {
+    try {
+      const today = getTodayString();
+      const current = await chrome.storage.local.get([
+        "statsDate",
+        "todayRefreshCount",
+        "todayReadCount",
+        "todayKeywordHitCount",
+        "todayUserHitCount"
+      ]);
 
-  // 日付が変わっている場合はリセットして今回のカウントだけセット
-  if (current.statsDate !== today) {
-    await chrome.storage.local.set({
-      statsDate: today,
-      todayRefreshCount: 0,
-      todayReadCount: 0,
-      todayKeywordHitCount: 0,
-      todayUserHitCount: 0,
-      [key]: amount
-    });
-  } else {
-    // 当日ならそのまま既存値に加算
-    const currentValue = current[key] || 0;
-    await chrome.storage.local.set({
-      [key]: currentValue + amount
-    });
-  }
+      // 日付が変わっている場合はリセットして今回のカウントだけセット
+      if (current.statsDate !== today) {
+        await chrome.storage.local.set({
+          statsDate: today,
+          todayRefreshCount: 0,
+          todayReadCount: 0,
+          todayKeywordHitCount: 0,
+          todayUserHitCount: 0,
+          [key]: amount
+        });
+      } else {
+        // 当日ならそのまま既存値に加算
+        const currentValue = Number(current[key]) || 0;
+        await chrome.storage.local.set({
+          [key]: currentValue + amount
+        });
+      }
+    } catch (e) {
+      console.error("[Background Error] incrementDailyStat:", e);
+    }
+  });
 }
 
 // =========================
@@ -89,22 +99,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // 2. 未読情報保存
   if (message.type === "saveUnreadTweets") {
-    chrome.storage.local.set({ unreadTweets: message.unreadTweets });
+    chrome.storage.local.set({ unreadTweets: message.unreadTweets || [] });
     return;
   }
 
   // 3. 既読情報保存
   if (message.type === "saveReadTweets") {
+    const newReadTweets = message.readTweets || [];
+
     chrome.storage.local.get({ readTweets: [] }, (data) => {
-      const prevCount = data.readTweets ? data.readTweets.length : 0;
-      const newCount = message.readTweets ? message.readTweets.length : 0;
-      const addedCount = newCount - prevCount;
+      const oldReadTweets = data.readTweets || [];
+      const oldSet = new Set(oldReadTweets);
 
-      chrome.storage.local.set({ readTweets: message.readTweets });
-
-      if (addedCount > 0) {
-        incrementDailyStat("todayReadCount", addedCount);
+      // 新しく増えたツイートの件数を正しく算出
+      let addedCount = 0;
+      for (const id of newReadTweets) {
+        if (!oldSet.has(id)) {
+          addedCount++;
+        }
       }
+
+      // ★ 最重要: 統計処理とは切り離して、既読ID配列の保存を確実に実行
+      chrome.storage.local.set({ readTweets: newReadTweets }, () => {
+        // 保存成功後に安全に統計を加算
+        if (addedCount > 0) {
+          incrementDailyStat("todayReadCount", addedCount);
+        }
+      });
     });
     return;
   }
@@ -123,10 +144,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // 6. ハイライト検知通知
   if (message.type === "recordHits") {
-    if (message.keywordHits) {
+    if (message.keywordHits && message.keywordHits > 0) {
       incrementDailyStat("todayKeywordHitCount", message.keywordHits);
     }
-    if (message.userHits) {
+    if (message.userHits && message.userHits > 0) {
       incrementDailyStat("todayUserHitCount", message.userHits);
     }
     return;
