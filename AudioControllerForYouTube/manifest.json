@@ -3,13 +3,11 @@
   "name": "Audio Controller for YouTube",
   "short_name": "ACY",
   "description": "YouTubeの音量、スピード、EQ、LUFS/RMSの計測を行う拡張機能",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": "chamroot",
   "homepage_url": "https://github.com/chamroot/AI__chrome_extensions/tree/main/AudioControllerForYouTube",
   "permissions": [
-    "storage",
-    "activeTab",
-    "scripting"
+    "storage"
   ],
   "host_permissions": [
     "https://www.youtube.com/*"
@@ -21,7 +19,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "Audio Controller",
+    "default_title": "Audio Controller for YouTube",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
